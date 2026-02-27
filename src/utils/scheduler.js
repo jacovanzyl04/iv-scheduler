@@ -390,16 +390,18 @@ export function validateSchedule(schedule, staff) {
       if (branch.isClinic) return; // Clinic is optional — nurse only, no receptionist needed
 
       const cell = schedule[day]?.[branch.id];
-      if (!cell || cell.nurses.length === 0) {
+      const nurses = cell?.nurses || [];
+      const receptionists = cell?.receptionists || [];
+      if (!cell || nurses.length === 0) {
         errors.push(`${branch.name} has no nurse on ${day}`);
       }
 
       // Check for too many nurses (max 1)
-      if (cell && cell.nurses.length > 1) {
-        warnings.push(`${branch.name} has ${cell.nurses.length} nurses on ${day} (only 1 needed)`);
+      if (cell && nurses.length > 1) {
+        warnings.push(`${branch.name} has ${nurses.length} nurses on ${day} (only 1 needed)`);
       }
 
-      if (cell && cell.receptionists.length === 0) {
+      if (cell && receptionists.length === 0) {
         // Check if there's a nurse who can work alone
         const hasAloneNurse = cell?.nurses?.some(n => {
           const s = staff.find(st => st.id === n.id);

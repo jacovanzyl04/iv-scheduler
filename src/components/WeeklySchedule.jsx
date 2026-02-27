@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, Fragment } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours } from '../data/initialData';
 import { autoSchedule, validateSchedule, calculateWeeklyHours } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
@@ -438,7 +438,7 @@ export default function WeeklySchedule({
           </thead>
           <tbody>
             {BRANCHES.map(branch => (
-              <>
+              <Fragment key={branch.id}>
                 {/* Nurse row */}
                 <tr key={`${branch.id}-nurse`} className="border-b border-gray-100">
                   <td className="p-2 text-sm" style={{ borderLeft: `4px solid ${branch.color}` }}>
@@ -553,7 +553,7 @@ export default function WeeklySchedule({
                     ))}
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
 
             {/* Unassigned Staff Pool Row */}
