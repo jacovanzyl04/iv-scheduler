@@ -63,11 +63,12 @@ export default function WeeklySchedule({
     if (dragging.role !== role) return false;
     if (!isBranchOpen(branchId, day)) return false;
 
-    // Check slot is empty
+    // Check slot capacity
     const cell = schedule[day]?.[branchId];
     const key = role === 'nurse' ? 'nurses' : 'receptionists';
     const existing = cell?.[key] || [];
-    if (existing.length >= 1 && !existing.some(s => s.id === dragging.staffId)) return false;
+    const maxSlots = (role === 'nurse' && branchId === 'parkview' && day === 'Saturday') ? 2 : 1;
+    if (existing.length >= maxSlots && !existing.some(s => s.id === dragging.staffId)) return false;
 
     // If same cell, no point dropping
     if (dragging.fromDay === day && dragging.fromBranchId === branchId) return false;
@@ -459,18 +460,20 @@ export default function WeeklySchedule({
                     }
 
                     const isDrop = isDropTarget(day, branch.id, 'nurse');
+                    const maxNurses = (branch.id === 'parkview' && day === 'Saturday') ? 2 : 1;
+                    const needsMore = nurses.length < maxNurses;
 
                     return (
                       <td
                         key={day}
-                        className={`p-1 schedule-cell transition-colors ${isToday(i) ? 'bg-teal-50/50' : ''} ${nurses.length === 0 && !dragging ? 'bg-red-50/50' : ''} ${isDrop ? 'bg-teal-100 ring-2 ring-teal-400 ring-inset' : ''} ${dragging?.role === 'nurse' && nurses.length === 0 ? 'bg-teal-50/30' : ''}`}
+                        className={`p-1 schedule-cell transition-colors ${isToday(i) ? 'bg-teal-50/50' : ''} ${needsMore && !dragging ? 'bg-red-50/50' : ''} ${isDrop ? 'bg-teal-100 ring-2 ring-teal-400 ring-inset' : ''} ${dragging?.role === 'nurse' && needsMore ? 'bg-teal-50/30' : ''}`}
                         onDragOver={(e) => handleDragOver(e, day, branch.id, 'nurse')}
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, day, branch.id, 'nurse')}
                       >
                         <div className="space-y-1">
                           {nurses.map(n => renderNurseBadge(n, day, branch.id))}
-                          {nurses.length === 0 && !dragging && (
+                          {needsMore && !dragging && (
                             <button
                               onClick={() => setAssignModal({ day, branchId: branch.id, role: 'nurse' })}
                               className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded p-1 transition-colors"
@@ -479,7 +482,7 @@ export default function WeeklySchedule({
                               Assign
                             </button>
                           )}
-                          {nurses.length === 0 && dragging?.role === 'nurse' && (
+                          {needsMore && dragging?.role === 'nurse' && (
                             <div className="text-xs text-teal-400 text-center p-1">Drop here</div>
                           )}
                         </div>

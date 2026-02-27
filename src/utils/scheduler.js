@@ -60,14 +60,19 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     return count;
   }
 
+  // Helper: max nurses allowed for a branch on a given day
+  function getMaxNurses(branchId, day) {
+    return (branchId === 'parkview' && day === 'Saturday') ? 2 : 1;
+  }
+
   // Helper: assign staff to a branch on a day
   // Returns true if assignment was made, false if slot was already full
   function assign(staffMember, branchId, day) {
     const cell = schedule[day][branchId];
     const assignment = { id: staffMember.id, name: staffMember.name, locked: false };
     if (staffMember.role === 'nurse') {
-      // MAX 1 nurse per branch per day
-      if (cell.nurses.length >= 1) return false;
+      const maxNurses = getMaxNurses(branchId, day);
+      if (cell.nurses.length >= maxNurses) return false;
       if (!cell.nurses.some(n => n.id === staffMember.id)) {
         cell.nurses.push(assignment);
         return true;
@@ -87,7 +92,8 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   // Helper: does branch need a nurse on this day?
   function branchNeedsNurse(branchId, day) {
     if (!isBranchOpen(branchId, day)) return false;
-    return schedule[day][branchId].nurses.length === 0;
+    const maxNurses = getMaxNurses(branchId, day);
+    return schedule[day][branchId].nurses.length < maxNurses;
   }
 
   // Helper: does branch need a receptionist on this day?
@@ -392,13 +398,14 @@ export function validateSchedule(schedule, staff) {
       const cell = schedule[day]?.[branch.id];
       const nurses = cell?.nurses || [];
       const receptionists = cell?.receptionists || [];
+      const maxNurses = (branch.id === 'parkview' && day === 'Saturday') ? 2 : 1;
       if (!cell || nurses.length === 0) {
         errors.push(`${branch.name} has no nurse on ${day}`);
       }
 
-      // Check for too many nurses (max 1)
-      if (cell && nurses.length > 1) {
-        warnings.push(`${branch.name} has ${nurses.length} nurses on ${day} (only 1 needed)`);
+      // Check for too many nurses
+      if (cell && nurses.length > maxNurses) {
+        warnings.push(`${branch.name} has ${nurses.length} nurses on ${day} (max ${maxNurses})`);
       }
 
       if (cell && receptionists.length === 0) {

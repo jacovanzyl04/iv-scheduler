@@ -2,49 +2,92 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { BRANCHES, DAYS_OF_WEEK } from '../data/initialData';
 
+// Order days starting from Sunday to match paper format
+const EXPORT_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_ABBREV = { Sunday: 'Sun', Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
+
+function formatTime(timeStr) {
+  if (!timeStr) return '';
+  // '09:00' → '9', '18:00' → '18', '13:00' → '13'
+  const hour = parseInt(timeStr.split(':')[0], 10);
+  return String(hour);
+}
+
+function getTimeRange(branch, day) {
+  const hrs = branch.hours[day];
+  if (!hrs) return '';
+  return `${formatTime(hrs.open)} - ${formatTime(hrs.close)}`;
+}
+
+function getDayDate(weekStartDate, dayName) {
+  // weekStartDate is a Monday date string like '2026-03-02'
+  const monday = new Date(weekStartDate + 'T00:00:00');
+  const dayOffsets = {
+    Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3,
+    Friday: 4, Saturday: 5, Sunday: -1,
+  };
+  const d = new Date(monday);
+  d.setDate(d.getDate() + dayOffsets[dayName]);
+  return d.getDate();
+}
+
 export function exportScheduleToExcel(schedule, weekStartDate, staff) {
   const wb = XLSX.utils.book_new();
 
-  // === Schedule Sheet ===
-  const scheduleData = [];
+  // === Schedule Sheet (all branches on one sheet) ===
+  const data = [];
 
-  // Header row
-  scheduleData.push(['', ...DAYS_OF_WEEK]);
+  BRANCHES.forEach((branch, branchIndex) => {
+    // Branch header
+    data.push([branch.name]);
+    // Column headers
+    data.push(['Day', 'Date', 'RN', 'Times', 'Receptionist', 'Times']);
 
-  BRANCHES.forEach(branch => {
-    // Nurse row
-    const nurseRow = [`${branch.name} - Nurse`];
-    DAYS_OF_WEEK.forEach(day => {
+    // Data rows (Sun → Sat)
+    EXPORT_DAYS.forEach(day => {
+      const dateNum = getDayDate(weekStartDate, day);
+      const hrs = branch.hours[day];
       const cell = schedule[day]?.[branch.id];
-      const nurses = cell?.nurses?.map(n => n.name).join(', ') || '-';
-      nurseRow.push(nurses);
-    });
-    scheduleData.push(nurseRow);
 
-    // Receptionist row
-    const recRow = [`${branch.name} - Receptionist`];
-    DAYS_OF_WEEK.forEach(day => {
-      const cell = schedule[day]?.[branch.id];
-      const recs = cell?.receptionists?.map(r => r.name).join(', ') || '-';
-      recRow.push(recs);
-    });
-    scheduleData.push(recRow);
+      if (!hrs) {
+        // Branch closed on this day
+        data.push([DAY_ABBREV[day], dateNum, '', '', '', '']);
+      } else {
+        const nurses = cell?.nurses?.map(n => n.name).join(', ') || '';
+        const recs = cell?.receptionists?.map(r => r.name).join(', ') || '';
+        const timeRange = getTimeRange(branch, day);
+        const nurseTime = nurses ? timeRange : '';
+        const recTime = recs ? timeRange : '';
 
-    // Empty row between branches
-    scheduleData.push([]);
+        data.push([DAY_ABBREV[day], dateNum, nurses, nurseTime, recs, recTime]);
+      }
+    });
+
+    // Spacing between branches
+    if (branchIndex < BRANCHES.length - 1) {
+      data.push([]);
+      data.push([]);
+    }
   });
 
-  const ws1 = XLSX.utils.aoa_to_sheet(scheduleData);
+  const ws1 = XLSX.utils.aoa_to_sheet(data);
 
   // Set column widths
   ws1['!cols'] = [
-    { wch: 28 },
-    ...DAYS_OF_WEEK.map(() => ({ wch: 18 }))
+    { wch: 6 },   // Day
+    { wch: 6 },   // Date
+    { wch: 18 },  // RN
+    { wch: 10 },  // Times
+    { wch: 18 },  // Receptionist
+    { wch: 10 },  // Times
   ];
+
+  // Bold the branch name rows and header rows
+  // (xlsx-js doesn't support styling in the free version, but the structure is correct)
 
   XLSX.utils.book_append_sheet(wb, ws1, 'Weekly Schedule');
 
-  // === Staff Hours Sheet ===
+  // === Staff Hours Sheet (unchanged) ===
   const hoursData = [['Staff Member', 'Role', 'Type', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Total Shifts', 'Total Hours']];
 
   staff.forEach(member => {
@@ -54,13 +97,12 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
 
     DAYS_OF_WEEK.forEach(day => {
       let assignment = '-';
-      BRANCHES.forEach(branch => {
-        const cell = schedule[day]?.[branch.id];
+      BRANCHES.forEach(b => {
+        const cell = schedule[day]?.[b.id];
         if (cell?.nurses?.some(n => n.id === member.id) || cell?.receptionists?.some(r => r.id === member.id)) {
-          assignment = branch.name;
+          assignment = b.name;
           totalShifts++;
-          const branchData = BRANCHES.find(b => b.id === branch.id);
-          totalHours += branchData?.hours[day]?.shiftHours || 0;
+          totalHours += b.hours[day]?.shiftHours || 0;
         }
       });
       row.push(assignment);
