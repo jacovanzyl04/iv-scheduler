@@ -8,7 +8,7 @@ const STAFF_COLOR_HEX = {
   teal: '14B8A6', blue: '3B82F6', purple: '8B5CF6', pink: 'EC4899',
 };
 
-const EXPORT_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const EXPORT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_ABBREV = { Sunday: 'Sun', Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
 
 // Medium border style for all cells
@@ -54,7 +54,7 @@ function getAssignmentHours(assignment, branch, day) {
 
 function getDayDate(weekStartDate, dayName) {
   const monday = new Date(weekStartDate + 'T00:00:00');
-  const dayOffsets = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: -1 };
+  const dayOffsets = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: 6 };
   const d = new Date(monday);
   d.setDate(d.getDate() + dayOffsets[dayName]);
   return d.getDate();
@@ -78,19 +78,23 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
   let row = 0;
 
   BRANCHES.forEach((branch, bi) => {
-    // --- Branch header (merged across all 6 columns) ---
-    for (let c = 0; c < 6; c++) {
+    const isClinic = !!branch.isClinic;
+    const colCount = isClinic ? 4 : 6; // Clinic: Day, Date, RN, Times (no Receptionist)
+
+    // --- Branch header (merged across all columns) ---
+    for (let c = 0; c < colCount; c++) {
       ws[XLSX.utils.encode_cell({ r: row, c })] = makeCell(c === 0 ? branch.name : '', {
         font: { bold: true, sz: 14, color: { rgb: '000000' } },
         alignment: CENTER,
         border: BORDER,
       });
     }
-    merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 5 } });
+    merges.push({ s: { r: row, c: 0 }, e: { r: row, c: colCount - 1 } });
     row++;
 
     // --- Column headers (yellow background, bold) ---
-    ['Day', 'Date', 'RN', 'Times', 'Receptionist', 'Times'].forEach((h, c) => {
+    const headers = isClinic ? ['Day', 'Date', 'RN', 'Times'] : ['Day', 'Date', 'RN', 'Times', 'Receptionist', 'Times'];
+    headers.forEach((h, c) => {
       ws[XLSX.utils.encode_cell({ r: row, c })] = makeCell(h, {
         font: { bold: true, sz: 11, color: { rgb: '000000' } },
         alignment: CENTER,
@@ -100,33 +104,39 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
     });
     row++;
 
-    // --- Data rows (Sun → Sat) ---
+    // --- Data rows (Mon → Sun) ---
     EXPORT_DAYS.forEach(day => {
       const dateNum = getDayDate(weekStartDate, day);
       const hrs = branch.hours[day];
       const sc = schedule[day]?.[branch.id];
       const nurses = sc?.nurses || [];
       const recs = sc?.receptionists || [];
+      const timeRange = hrs ? getTimeRange(branch, day) : '';
 
       // Build per-assignment names and times (supports split shifts)
       const hasCustomNurseTimes = nurses.some(n => n.shiftStart && n.shiftEnd);
       const hasCustomRecTimes = recs.some(r => r.shiftStart && r.shiftEnd);
 
-      const nurseStr = nurses.map(n => n.name).join(hasCustomNurseTimes ? '\n' : ', ');
-      const nurseTimesStr = nurses.length > 0
+      // Nurse name and times — show "None" in red if no nurse and branch is open
+      const noNurse = nurses.length === 0 && hrs;
+      const nurseStr = noNurse ? 'None' : nurses.map(n => n.name).join(hasCustomNurseTimes ? '\n' : ', ');
+      const nurseTimesStr = hrs
         ? (hasCustomNurseTimes
           ? nurses.map(n => getAssignmentTimeRange(n, branch, day)).join('\n')
-          : (hrs ? getTimeRange(branch, day) : ''))
+          : timeRange)
         : '';
+      const nurseColor = noNurse ? 'FF0000' : (nurses.length > 0 ? getStaffHex(nurses[0].id, staff) : '000000');
+      const nurseAlign = hasCustomNurseTimes ? CENTER_WRAP : CENTER;
 
-      const recStr = recs.map(r => r.name).join(hasCustomRecTimes ? '\n' : ', ');
-      const recTimesStr = recs.length > 0
+      // Receptionist name and times — show "None" in red if no receptionist and branch is open
+      const noRec = recs.length === 0 && hrs;
+      const recStr = noRec ? 'None' : recs.map(r => r.name).join(hasCustomRecTimes ? '\n' : ', ');
+      const recTimesStr = hrs
         ? (hasCustomRecTimes
           ? recs.map(r => getAssignmentTimeRange(r, branch, day)).join('\n')
-          : (hrs ? getTimeRange(branch, day) : ''))
+          : timeRange)
         : '';
-
-      const nurseAlign = hasCustomNurseTimes ? CENTER_WRAP : CENTER;
+      const recColor = noRec ? 'FF0000' : (recs.length > 0 ? getStaffHex(recs[0].id, staff) : '000000');
       const recAlign = hasCustomRecTimes ? CENTER_WRAP : CENTER;
 
       // Day column — bold, size 12
@@ -143,33 +153,35 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
         border: BORDER,
       });
 
-      // RN column — size 11, staff color (first nurse's color; multiline if split shifts)
+      // RN column — size 11, staff color or red for "None"
       ws[XLSX.utils.encode_cell({ r: row, c: 2 })] = makeCell(nurseStr, {
-        font: { sz: 11, color: { rgb: nurses.length > 0 ? getStaffHex(nurses[0].id, staff) : '000000' } },
+        font: { sz: 11, color: { rgb: nurseColor } },
         alignment: nurseAlign,
         border: BORDER,
       });
 
-      // Nurse Times column — size 9
+      // Nurse Times column — size 9 (always show if branch is open)
       ws[XLSX.utils.encode_cell({ r: row, c: 3 })] = makeCell(nurseTimesStr, {
         font: { sz: 9, color: { rgb: '000000' } },
         alignment: nurseAlign,
         border: BORDER,
       });
 
-      // Receptionist column — size 11, staff color
-      ws[XLSX.utils.encode_cell({ r: row, c: 4 })] = makeCell(recStr, {
-        font: { sz: 11, color: { rgb: recs.length > 0 ? getStaffHex(recs[0].id, staff) : '000000' } },
-        alignment: recAlign,
-        border: BORDER,
-      });
+      if (!isClinic) {
+        // Receptionist column — size 11, staff color or red for "None"
+        ws[XLSX.utils.encode_cell({ r: row, c: 4 })] = makeCell(recStr, {
+          font: { sz: 11, color: { rgb: recColor } },
+          alignment: recAlign,
+          border: BORDER,
+        });
 
-      // Receptionist Times column — size 9
-      ws[XLSX.utils.encode_cell({ r: row, c: 5 })] = makeCell(recTimesStr, {
-        font: { sz: 9, color: { rgb: '000000' } },
-        alignment: recAlign,
-        border: BORDER,
-      });
+        // Receptionist Times column — size 9 (always show if branch is open)
+        ws[XLSX.utils.encode_cell({ r: row, c: 5 })] = makeCell(recTimesStr, {
+          font: { sz: 9, color: { rgb: '000000' } },
+          alignment: recAlign,
+          border: BORDER,
+        });
+      }
 
       row++;
     });
