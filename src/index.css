@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0f766e;
+  --color-primary-light: #14b8a6;
+  --color-primary-dark: #0d5f58;
+  --color-accent: #f59e0b;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-parkview: #3b82f6;
+  --color-clearwater: #8b5cf6;
+  --color-rosebank: #ec4899;
+  --color-clinic: #f97316;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: #f8fafc;
+  min-width: 320px;
+}
+
+.schedule-cell {
+  min-height: 80px;
+  transition: all 0.15s ease;
+}
+
+.schedule-cell:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.staff-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nurse-badge {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+  justify-content: center;
+}
+
+.receptionist-badge {
+  background-color: #fce7f3;
+  color: #9d174d;
+  border: 1px solid #f9a8d4;
+  justify-content: center;
+}
+
+.manager-badge {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.branch-parkview { border-left: 4px solid var(--color-parkview); }
+.branch-clearwater { border-left: 4px solid var(--color-clearwater); }
+.branch-rosebank { border-left: 4px solid var(--color-rosebank); }
+.branch-clinic { border-left: 4px solid var(--color-clinic); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
