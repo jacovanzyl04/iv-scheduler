@@ -78,6 +78,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'blue',
     notes: 'Manager. Only works Fri/Sat/Sun at Parkview.',
   },
   {
@@ -92,6 +93,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: 4,
+    color: 'green',
     notes: 'Willing to travel Parkview/Rosebank. Needs minimum 4 shifts per week.',
   },
   {
@@ -106,6 +108,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'purple',
     notes: 'Rosebank and Clearwater, mostly shifted in Clearwater.',
   },
   {
@@ -120,6 +123,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: 0, // TBD - user will update
     minShiftsPerWeek: null,
+    color: 'pink',
     notes: 'Permanent. Main branch Rosebank, can travel if needed. Hours target TBD.',
   },
   {
@@ -134,6 +138,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'orange',
     notes: 'All branches. Flexible.',
   },
   {
@@ -149,6 +154,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'amber',
     notes: 'Weekends only. Must have BOTH Saturday and Sunday or none.',
   },
   // === NURSES ===
@@ -165,6 +171,7 @@ export const INITIAL_STAFF = [
     priority: true,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'teal',
     notes: 'Fixed Rosebank. Clearwater only as last resort. Gets all shifts requested.',
   },
   {
@@ -179,6 +186,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'blue',
     notes: 'Parkview and Clearwater. Main branch is Clearwater.',
   },
   {
@@ -193,6 +201,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'purple',
     notes: 'Parkview only. Weekends only.',
   },
   {
@@ -207,6 +216,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'red',
     notes: 'Parkview and Clearwater.',
   },
   {
@@ -221,6 +231,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'orange',
     notes: 'Clearwater only.',
   },
   {
@@ -235,6 +246,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'amber',
     notes: 'Clearwater and Rosebank.',
   },
   {
@@ -249,6 +261,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'green',
     notes: 'Clearwater and Rosebank.',
   },
   {
@@ -263,6 +276,7 @@ export const INITIAL_STAFF = [
     priority: false,
     monthlyHoursTarget: null,
     minShiftsPerWeek: null,
+    color: 'pink',
     notes: 'Clearwater and Rosebank.',
   },
   {
@@ -278,6 +292,7 @@ export const INITIAL_STAFF = [
     priority: true,
     monthlyHoursTarget: 0, // TBD
     minShiftsPerWeek: null,
+    color: 'teal',
     notes: 'Permanent. All branches. Main: Parkview & Clinic. Gets all shifts requested.',
   },
   {
@@ -293,6 +308,7 @@ export const INITIAL_STAFF = [
     priority: true,
     monthlyHoursTarget: 0, // TBD
     minShiftsPerWeek: null,
+    color: 'red',
     notes: 'Permanent. All branches. Main: Parkview & Clinic. Gets all shifts requested.',
   },
 ];

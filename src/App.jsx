@@ -44,12 +44,15 @@ export default function App() {
 
   // Track whether updates are from Firebase (to avoid write-back loops)
   const fromFirebase = useRef(false);
+  // Skip saving on initial mount (prevents fresh deploy from overwriting Firebase data)
+  const hasMounted = useRef(false);
+  useEffect(() => { hasMounted.current = true; }, []);
 
   // Persist state changes (writes to both localStorage and Firebase)
-  useEffect(() => { if (!fromFirebase.current) saveToStorage(STORAGE_KEYS.STAFF, staff); }, [staff]);
-  useEffect(() => { if (!fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
-  useEffect(() => { if (!fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
-  useEffect(() => { if (!fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
+  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.STAFF, staff); }, [staff]);
+  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
+  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
+  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
