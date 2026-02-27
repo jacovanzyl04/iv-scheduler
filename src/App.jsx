@@ -65,7 +65,7 @@ export default function App() {
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.SCHEDULES, (data) => {
       fromFirebase.current = true;
-      setSchedules(data || {});
+      setSchedules(normalizeSchedules(data));
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }));
 
@@ -83,6 +83,27 @@ export default function App() {
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
+
+  // Firebase drops empty arrays — normalize schedule cells to always have nurses/receptionists
+  function normalizeSchedules(data) {
+    if (!data || typeof data !== 'object') return {};
+    const result = {};
+    for (const [weekKey, weekData] of Object.entries(data)) {
+      if (!weekData || typeof weekData !== 'object') { result[weekKey] = weekData; continue; }
+      result[weekKey] = {};
+      for (const [day, dayData] of Object.entries(weekData)) {
+        if (!dayData || typeof dayData !== 'object') { result[weekKey][day] = dayData; continue; }
+        result[weekKey][day] = {};
+        for (const [branchId, cell] of Object.entries(dayData)) {
+          result[weekKey][day][branchId] = {
+            nurses: Array.isArray(cell?.nurses) ? cell.nurses : [],
+            receptionists: Array.isArray(cell?.receptionists) ? cell.receptionists : [],
+          };
+        }
+      }
+    }
+    return result;
+  }
 
   const weekKey = formatDate(currentWeekStart);
   const currentSchedule = schedules[weekKey] || {};
