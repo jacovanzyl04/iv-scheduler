@@ -1,13 +1,29 @@
 import { useState, useCallback, Fragment } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours } from '../data/initialData';
-import { autoSchedule, validateSchedule, calculateWeeklyHours } from '../utils/scheduler';
+import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, SAT_SPLIT } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
-import { ChevronLeft, ChevronRight, Wand2, Download, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, GripVertical, Stethoscope, Headphones } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Wand2, Download, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, GripVertical, Stethoscope, Headphones, Clock } from 'lucide-react';
 
 const STAFF_COLOR_MAP = {
   red: '#ef4444', orange: '#f97316', amber: '#f59e0b', green: '#22c55e',
   teal: '#14b8a6', blue: '#3b82f6', purple: '#8b5cf6', pink: '#ec4899',
 };
+
+// Format "HH:MM" → short hour display: "9", "13", "17"
+function fmtHour(t) {
+  if (!t) return '';
+  return String(parseInt(t.split(':')[0], 10));
+}
+
+// Format shift time range for badge display: "9-1" or "1-5"
+function fmtShiftRange(n, branchId, day) {
+  if (!n.shiftStart && !n.shiftEnd) return null;
+  const branch = BRANCHES.find(b => b.id === branchId);
+  const hrs = branch?.hours[day];
+  const start = n.shiftStart || hrs?.open;
+  const end = n.shiftEnd || hrs?.close;
+  return `${fmtHour(start)}-${fmtHour(end)}`;
+}
 
 function formatWeekRange(weekStart) {
   const start = new Date(weekStart);
@@ -32,17 +48,69 @@ function getDateStr(weekStart, dayIndex) {
   return `${year}-${month}-${day}`;
 }
 
+// Get all assignments for a staff member on a specific day across all branches
+function getStaffDayAssignments(staffId, day, schedule) {
+  const assignments = [];
+  BRANCHES.forEach(branch => {
+    const cell = schedule[day]?.[branch.id];
+    if (!cell) return;
+    const hrs = branch.hours[day];
+    [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
+      if (person.id === staffId) {
+        assignments.push({
+          branchId: branch.id,
+          start: person.shiftStart || hrs?.open || '09:00',
+          end: person.shiftEnd || hrs?.close || '17:00',
+        });
+      }
+    });
+  });
+  return assignments;
+}
+
+// Check if a proposed time range conflicts with existing assignments for a staff member
+function hasStaffTimeConflict(staffId, day, proposedStart, proposedEnd, schedule, excludeBranchId) {
+  const assignments = getStaffDayAssignments(staffId, day, schedule);
+  return assignments.some(a => {
+    if (excludeBranchId && a.branchId === excludeBranchId) return false;
+    return timesOverlap(proposedStart, proposedEnd, a.start, a.end);
+  });
+}
+
 export default function WeeklySchedule({
   staff, schedule, setSchedule, weekStartDate, currentWeekStart,
   availability, shiftRequests, goToPrevWeek, goToNextWeek, goToToday
 }) {
-  const [assignModal, setAssignModal] = useState(null);
+  const [assignModal, setAssignModal] = useState(null); // { day, branchId, role }
+  const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember }
   const [showValidation, setShowValidation] = useState(false);
-  const [dragOverTarget, setDragOverTarget] = useState(null); // { day, branchId, role }
-  const [dragging, setDragging] = useState(null); // { staffId, staffName, role, fromDay, fromBranchId }
+  const [dragOverTarget, setDragOverTarget] = useState(null);
+  const [dragging, setDragging] = useState(null);
 
   const { warnings, errors } = validateSchedule(schedule, staff);
   const weeklyHours = calculateWeeklyHours(schedule, staff);
+
+  // === Saturday time slot helpers ===
+  const isSaturday = (day) => day === 'Saturday';
+
+  // Get available time slots for a staff member on a Saturday branch
+  const getSaturdaySlots = (day, branchId, staffMember) => {
+    if (!isSaturday(day)) return null;
+    const branch = BRANCHES.find(b => b.id === branchId);
+    const hrs = branch?.hours[day];
+    if (!hrs) return null;
+
+    const slots = [
+      { label: `Morning (${fmtHour(hrs.open)}-${fmtHour(SAT_SPLIT)})`, start: hrs.open, end: SAT_SPLIT },
+      { label: `Afternoon (${fmtHour(SAT_SPLIT)}-${fmtHour(hrs.close)})`, start: SAT_SPLIT, end: hrs.close },
+      { label: `Full Day (${fmtHour(hrs.open)}-${fmtHour(hrs.close)})`, start: hrs.open, end: hrs.close },
+    ];
+
+    // Filter out slots that conflict with the staff member's existing Saturday assignments
+    return slots.filter(slot => {
+      return !hasStaffTimeConflict(staffMember.id, day, slot.start, slot.end, schedule, branchId);
+    });
+  };
 
   // === DRAG AND DROP HANDLERS ===
 
@@ -73,12 +141,27 @@ export default function WeeklySchedule({
     // If same cell, no point dropping
     if (dragging.fromDay === day && dragging.fromBranchId === branchId) return false;
 
-    // Check staff isn't already assigned elsewhere on that day (unless it's the source day)
+    // Check staff isn't already assigned elsewhere on that day (time-aware on Saturday)
     if (dragging.fromDay !== day) {
-      for (const b of BRANCHES) {
-        const c = schedule[day]?.[b.id];
-        if (c?.nurses?.some(n => n.id === dragging.staffId)) return false;
-        if (c?.receptionists?.some(r => r.id === dragging.staffId)) return false;
+      if (isSaturday(day)) {
+        // On Saturday, check time conflicts instead of blanket blocking
+        const branch = BRANCHES.find(b => b.id === branchId);
+        const hrs = branch?.hours[day];
+        if (hrs) {
+          // Check if there's ANY available time slot
+          const member = staff.find(s => s.id === dragging.staffId);
+          if (member) {
+            const slots = getSaturdaySlots(day, branchId, member);
+            if (!slots || slots.length === 0) return false;
+          }
+        }
+      } else {
+        // Non-Saturday: block if assigned anywhere on that day
+        for (const b of BRANCHES) {
+          const c = schedule[day]?.[b.id];
+          if (c?.nurses?.some(n => n.id === dragging.staffId)) return false;
+          if (c?.receptionists?.some(r => r.id === dragging.staffId)) return false;
+        }
       }
     }
 
@@ -114,27 +197,52 @@ export default function WeeklySchedule({
     const { staffId, staffName, role, fromDay, fromBranchId } = data;
     if (role !== toRole) return;
 
+    // On Saturday, if the nurse already has assignments, auto-pick a non-conflicting slot
+    if (isSaturday(toDay)) {
+      const member = staff.find(s => s.id === staffId);
+      if (member) {
+        const slots = getSaturdaySlots(toDay, toBranchId, member);
+        if (slots && slots.length > 0 && slots.length < 3) {
+          // Auto-pick the first available partial slot (not full day if constrained)
+          const partialSlots = slots.filter(s => s.start !== BRANCHES.find(b => b.id === toBranchId)?.hours[toDay]?.open || s.end !== BRANCHES.find(b => b.id === toBranchId)?.hours[toDay]?.close);
+          const slot = partialSlots.length > 0 ? partialSlots[0] : slots[0];
+
+          setSchedule(prev => {
+            const updated = JSON.parse(JSON.stringify(prev));
+            const key = role === 'nurse' ? 'nurses' : 'receptionists';
+            if (fromDay && fromBranchId && updated[fromDay]?.[fromBranchId]) {
+              updated[fromDay][fromBranchId][key] = updated[fromDay][fromBranchId][key].filter(s => s.id !== staffId);
+            }
+            if (!updated[toDay]) updated[toDay] = {};
+            if (!updated[toDay][toBranchId]) updated[toDay][toBranchId] = { nurses: [], receptionists: [] };
+            if (!updated[toDay][toBranchId][key].some(s => s.id === staffId)) {
+              updated[toDay][toBranchId][key].push({
+                id: staffId, name: staffName, locked: false,
+                shiftStart: slot.start, shiftEnd: slot.end,
+              });
+            }
+            return updated;
+          });
+          return;
+        }
+      }
+    }
+
+    // Default drop (no split shift needed)
     setSchedule(prev => {
       const updated = JSON.parse(JSON.stringify(prev));
       const key = role === 'nurse' ? 'nurses' : 'receptionists';
-
-      // Remove from source (if from schedule, not from pool)
-      if (fromDay && fromBranchId) {
-        if (updated[fromDay]?.[fromBranchId]) {
-          updated[fromDay][fromBranchId][key] = updated[fromDay][fromBranchId][key].filter(s => s.id !== staffId);
-        }
+      if (fromDay && fromBranchId && updated[fromDay]?.[fromBranchId]) {
+        updated[fromDay][fromBranchId][key] = updated[fromDay][fromBranchId][key].filter(s => s.id !== staffId);
       }
-
-      // Add to target
       if (!updated[toDay]) updated[toDay] = {};
       if (!updated[toDay][toBranchId]) updated[toDay][toBranchId] = { nurses: [], receptionists: [] };
       if (!updated[toDay][toBranchId][key].some(s => s.id === staffId)) {
         updated[toDay][toBranchId][key].push({ id: staffId, name: staffName, locked: false });
       }
-
       return updated;
     });
-  }, [setSchedule]);
+  }, [setSchedule, schedule, staff]);
 
   // Pool drag start (from unassigned staff panel)
   const handlePoolDragStart = useCallback((e, member, day) => {
@@ -144,7 +252,7 @@ export default function WeeklySchedule({
     setDragging(data);
   }, []);
 
-  // === EXISTING HANDLERS ===
+  // === HANDLERS ===
 
   const handleAutoSchedule = () => {
     const result = autoSchedule(staff, schedule, availability, shiftRequests, weekStartDate);
@@ -193,23 +301,67 @@ export default function WeeklySchedule({
     });
   };
 
-  const addAssignment = (day, branchId, role, staffMember) => {
+  // Add assignment — on Saturday, show time picker; otherwise direct assign
+  const handleAssignClick = (day, branchId, role, staffMember) => {
+    if (isSaturday(day)) {
+      const slots = getSaturdaySlots(day, branchId, staffMember);
+      if (slots && slots.length === 1) {
+        // Only one option — assign directly with that slot
+        addAssignmentWithTime(day, branchId, role, staffMember, slots[0].start, slots[0].end);
+        return;
+      }
+      if (slots && slots.length > 1) {
+        // Show time picker
+        setTimePickerModal({ day, branchId, role, staffMember, slots });
+        setAssignModal(null);
+        return;
+      }
+    }
+    // Non-Saturday or clinic: direct assign
+    addAssignmentWithTime(day, branchId, role, staffMember, null, null);
+  };
+
+  const addAssignmentWithTime = (day, branchId, role, staffMember, shiftStart, shiftEnd) => {
     setSchedule(prev => {
       const updated = JSON.parse(JSON.stringify(prev));
       if (!updated[day]) updated[day] = {};
       if (!updated[day][branchId]) updated[day][branchId] = { nurses: [], receptionists: [] };
       const key = role === 'nurse' ? 'nurses' : 'receptionists';
       if (!updated[day][branchId][key].some(s => s.id === staffMember.id)) {
-        updated[day][branchId][key].push({ id: staffMember.id, name: staffMember.name, locked: false });
+        const assignment = { id: staffMember.id, name: staffMember.name, locked: false };
+        if (shiftStart) assignment.shiftStart = shiftStart;
+        if (shiftEnd) assignment.shiftEnd = shiftEnd;
+        updated[day][branchId][key].push(assignment);
       }
       return updated;
     });
     setAssignModal(null);
+    setTimePickerModal(null);
   };
 
   const getAvailableStaff = (day, branchId, role) => {
     const dayIndex = DAYS_OF_WEEK.indexOf(day);
     const dateStr = getDateStr(currentWeekStart, dayIndex);
+
+    // On Saturday, use time-aware filtering (staff with partial assignments are still available)
+    if (isSaturday(day)) {
+      return staff.filter(s => {
+        if (s.role !== role && !(s.alsoManager && role === 'receptionist')) return false;
+        if (s.availableDays && !s.availableDays.includes(day)) return false;
+        if (availability[s.id]?.includes(dateStr)) return false;
+        if (!s.branches.includes(branchId) && !s.lastResortBranches?.includes(branchId)) return false;
+        // Check if already in this specific cell
+        const cell = schedule[day]?.[branchId];
+        const key = role === 'nurse' ? 'nurses' : 'receptionists';
+        if (cell?.[key]?.some(p => p.id === s.id)) return false;
+        // Check if they have an available time slot
+        const slots = getSaturdaySlots(day, branchId, s);
+        if (!slots || slots.length === 0) return false;
+        return true;
+      });
+    }
+
+    // Non-Saturday: original logic (fully assigned = unavailable)
     const assignedOnDay = new Set();
     BRANCHES.forEach(b => {
       const cell = schedule[day]?.[b.id];
@@ -227,10 +379,42 @@ export default function WeeklySchedule({
     });
   };
 
-  // Get unassigned staff for a given day (filters out leave & unavailable days)
+  // Get unassigned staff for a given day
   const getUnassignedForDay = (day) => {
     const dayIndex = DAYS_OF_WEEK.indexOf(day);
     const dateStr = getDateStr(currentWeekStart, dayIndex);
+
+    if (isSaturday(day)) {
+      // On Saturday: include staff with partial assignments (they're partially available)
+      const fullyAssigned = new Set();
+      BRANCHES.forEach(b => {
+        const cell = schedule[day]?.[b.id];
+        [...(cell?.nurses || []), ...(cell?.receptionists || [])].forEach(person => {
+          // Check if this person has a full-day assignment (no custom times = full day)
+          if (!person.shiftStart && !person.shiftEnd) {
+            fullyAssigned.add(person.id);
+          }
+        });
+      });
+
+      // A staff member is "unassigned" if they have no assignments at all OR
+      // they only have partial-day assignments (still have availability)
+      return staff.filter(s => {
+        if (fullyAssigned.has(s.id)) return false;
+        if (s.availableDays && !s.availableDays.includes(day)) return false;
+        if (availability[s.id]?.includes(dateStr)) return false;
+        // Check if completely unassigned (not in any cell)
+        let hasAnyAssignment = false;
+        BRANCHES.forEach(b => {
+          const cell = schedule[day]?.[b.id];
+          if (cell?.nurses?.some(n => n.id === s.id)) hasAnyAssignment = true;
+          if (cell?.receptionists?.some(r => r.id === s.id)) hasAnyAssignment = true;
+        });
+        return !hasAnyAssignment;
+      });
+    }
+
+    // Non-Saturday: original logic
     const assignedOnDay = new Set();
     BRANCHES.forEach(b => {
       const cell = schedule[day]?.[b.id];
@@ -240,7 +424,6 @@ export default function WeeklySchedule({
     return staff.filter(s => {
       if (assignedOnDay.has(s.id)) return false;
       if (s.availableDays && !s.availableDays.includes(day)) return false;
-      // Check if on leave
       if (availability[s.id]?.includes(dateStr)) return false;
       return true;
     });
@@ -271,6 +454,7 @@ export default function WeeklySchedule({
 
   const renderNurseBadge = (n, day, branchId) => {
     const staffColor = getStaffColor(n.id);
+    const timeRange = fmtShiftRange(n, branchId, day);
     return (
     <div
       key={n.id}
@@ -282,7 +466,10 @@ export default function WeeklySchedule({
     >
       {!n.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
       <Stethoscope className="w-3 h-3 shrink-0 text-blue-500" />
-      <span className="flex-1 truncate text-center">{n.name}</span>
+      <span className="flex-1 truncate text-center">
+        {n.name}
+        {timeRange && <span className="text-[10px] text-gray-500 ml-0.5">({timeRange})</span>}
+      </span>
       {n.locked && <Lock className="w-3 h-3 shrink-0 opacity-40" />}
       <div className="hidden group-hover:flex items-center gap-0.5 absolute right-0 top-0 bottom-0 bg-blue-100 rounded-r-full pl-1 pr-1">
         <button
@@ -551,7 +738,7 @@ export default function WeeklySchedule({
                     </td>
                     {DAYS_OF_WEEK.map((day) => (
                       <td key={day} className="p-1 text-center bg-gray-50/50">
-                        <span className="text-xs text-gray-300">—</span>
+                        <span className="text-xs text-gray-300">&mdash;</span>
                       </td>
                     ))}
                   </tr>
@@ -636,7 +823,7 @@ export default function WeeklySchedule({
         </div>
       </div>
 
-      {/* Assignment Modal */}
+      {/* Assignment Modal (staff list) */}
       {assignModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setAssignModal(null)}>
           <div className="bg-white rounded-xl shadow-xl p-6 w-96 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={e => e.stopPropagation()}>
@@ -649,7 +836,8 @@ export default function WeeklySchedule({
               </button>
             </div>
             <p className="text-sm text-gray-500 mb-3">
-              {BRANCHES.find(b => b.id === assignModal.branchId)?.name} — {assignModal.day}
+              {BRANCHES.find(b => b.id === assignModal.branchId)?.name} &mdash; {assignModal.day}
+              {isSaturday(assignModal.day) && <span className="ml-1 text-xs text-teal-600">(time slots available)</span>}
             </p>
             <div className="space-y-1">
               {getAvailableStaff(assignModal.day, assignModal.branchId, assignModal.role).map(member => {
@@ -658,7 +846,7 @@ export default function WeeklySchedule({
                 return (
                   <button
                     key={member.id}
-                    onClick={() => addAssignment(assignModal.day, assignModal.branchId, assignModal.role, member)}
+                    onClick={() => handleAssignClick(assignModal.day, assignModal.branchId, assignModal.role, member)}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-teal-50 transition-colors flex items-center justify-between"
                   >
                     <div>
@@ -678,6 +866,41 @@ export default function WeeklySchedule({
                   No available {assignModal.role}s for this slot
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saturday Time Picker Modal */}
+      {timePickerModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setTimePickerModal(null)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-80 animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Select Time Slot
+              </h3>
+              <button onClick={() => setTimePickerModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              {timePickerModal.staffMember.name} &mdash; {BRANCHES.find(b => b.id === timePickerModal.branchId)?.name}
+            </p>
+            <div className="space-y-2">
+              {timePickerModal.slots.map((slot, i) => (
+                <button
+                  key={i}
+                  onClick={() => addAssignmentWithTime(
+                    timePickerModal.day, timePickerModal.branchId,
+                    timePickerModal.role, timePickerModal.staffMember,
+                    slot.start, slot.end
+                  )}
+                  className="w-full text-left px-4 py-3 rounded-lg border hover:bg-teal-50 hover:border-teal-300 transition-colors"
+                >
+                  <div className="font-medium text-gray-800">{slot.label}</div>
+                </button>
+              ))}
             </div>
           </div>
         </div>

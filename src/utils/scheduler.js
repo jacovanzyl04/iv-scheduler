@@ -1,16 +1,46 @@
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours } from '../data/initialData';
 
+// Saturday split point — matches Colon Clinic Saturday close time
+const SAT_SPLIT = '13:00';
+
+/**
+ * Parse "HH:MM" to minutes since midnight for time comparison
+ */
+function timeToMinutes(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+/**
+ * Calculate hours between two "HH:MM" strings
+ */
+function hoursBetween(start, end) {
+  return (timeToMinutes(end) - timeToMinutes(start)) / 60;
+}
+
+/**
+ * Check if two time ranges overlap.
+ * Ranges are [startA, endA) and [startB, endB) — touching endpoints don't overlap.
+ */
+function timesOverlap(startA, endA, startB, endB) {
+  const a0 = timeToMinutes(startA), a1 = timeToMinutes(endA);
+  const b0 = timeToMinutes(startB), b1 = timeToMinutes(endB);
+  return a0 < b1 && a1 > b0;
+}
+
 /**
  * Auto-scheduler algorithm for IV Therapy staff scheduling.
  *
  * Priority order:
  * 1. Place priority staff (Nneka, Dinah, Ntombi) at requested/main branches
  * 2. Place staff with fixed-day constraints (Jaco Fri-Sun, Trinity weekends, Nomonde weekends)
- * 3. Place permanent staff to help them reach hours targets
- * 4. Fill remaining nurse gaps at main branches
- * 5. Fill remaining receptionist gaps
- * 6. Fill clinic if capacity allows (overflow)
- * 7. Validate: each open branch has at least 1 nurse + 1 receptionist (or nurse who can work alone)
+ * 3. Fill remaining nurse gaps at main branches
+ * 4. Fill remaining receptionist gaps
+ * 5. Ensure Ian gets minimum 4 shifts
+ * 6. Saturday split-shift: Clinic nurse → morning clinic + afternoon main branch
+ * 7. Fill clinic on non-Saturday days if capacity allows (overflow)
+ * 8. Validate: each open branch has at least 1 nurse + 1 receptionist (or nurse who can work alone)
  */
 export function autoSchedule(staff, existingSchedule, availability, shiftRequests, weekStartDate) {
   // Clone existing schedule or start fresh
@@ -30,18 +60,46 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
 
   // Helper: check if staff member is available on a given day
   function isAvailable(staffMember, day, dateStr) {
-    // Check day-of-week restrictions
     if (staffMember.availableDays && !staffMember.availableDays.includes(day)) {
       return false;
     }
-    // Check leave/unavailability
     if (availability?.[staffMember.id]?.includes(dateStr)) {
       return false;
     }
     return true;
   }
 
-  // Helper: check if staff is already assigned on a day
+  // Helper: get the effective time range for an assignment
+  function getAssignmentTime(assignment, branchId, day) {
+    const branch = BRANCHES.find(b => b.id === branchId);
+    const hrs = branch?.hours[day];
+    return {
+      start: assignment.shiftStart || hrs?.open || '09:00',
+      end: assignment.shiftEnd || hrs?.close || '17:00',
+    };
+  }
+
+  // Helper: check if staff has a time conflict on a given day with proposed times
+  function hasTimeConflict(staffId, day, proposedStart, proposedEnd) {
+    for (const branchId of Object.keys(schedule[day])) {
+      const cell = schedule[day][branchId];
+      for (const n of (cell.nurses || [])) {
+        if (n.id === staffId) {
+          const t = getAssignmentTime(n, branchId, day);
+          if (timesOverlap(proposedStart, proposedEnd, t.start, t.end)) return true;
+        }
+      }
+      for (const r of (cell.receptionists || [])) {
+        if (r.id === staffId) {
+          const t = getAssignmentTime(r, branchId, day);
+          if (timesOverlap(proposedStart, proposedEnd, t.start, t.end)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Helper: check if staff is already assigned on a day (full-day block for non-Saturday)
   function isAssignedOnDay(staffId, day) {
     for (const branchId of Object.keys(schedule[day])) {
       const cell = schedule[day][branchId];
@@ -51,11 +109,15 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     return false;
   }
 
-  // Helper: count weekly assignments for a staff member
+  // Helper: count weekly assignments for a staff member (count each branch assignment as 1)
   function countWeeklyShifts(staffId) {
     let count = 0;
     DAYS_OF_WEEK.forEach(day => {
-      if (isAssignedOnDay(staffId, day)) count++;
+      BRANCHES.forEach(branch => {
+        const cell = schedule[day]?.[branch.id];
+        if (cell?.nurses?.some(n => n.id === staffId)) count++;
+        if (cell?.receptionists?.some(r => r.id === staffId)) count++;
+      });
     });
     return count;
   }
@@ -65,11 +127,13 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     return (branchId === 'parkview' && day === 'Saturday') ? 2 : 1;
   }
 
-  // Helper: assign staff to a branch on a day
-  // Returns true if assignment was made, false if slot was already full
-  function assign(staffMember, branchId, day) {
+  // Helper: assign staff to a branch on a day with optional custom times
+  function assign(staffMember, branchId, day, shiftStart, shiftEnd) {
     const cell = schedule[day][branchId];
     const assignment = { id: staffMember.id, name: staffMember.name, locked: false };
+    if (shiftStart) assignment.shiftStart = shiftStart;
+    if (shiftEnd) assignment.shiftEnd = shiftEnd;
+
     if (staffMember.role === 'nurse') {
       const maxNurses = getMaxNurses(branchId, day);
       if (cell.nurses.length >= maxNurses) return false;
@@ -79,7 +143,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
       }
       return false;
     } else {
-      // MAX 1 receptionist per branch per day
       if (cell.receptionists.length >= 1) return false;
       if (!cell.receptionists.some(r => r.id === staffMember.id)) {
         cell.receptionists.push(assignment);
@@ -99,12 +162,10 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   // Helper: does branch need a receptionist on this day?
   function branchNeedsReceptionist(branchId, day) {
     if (!isBranchOpen(branchId, day)) return false;
-    // Clinic does NOT need receptionists — nurse only
     const branch = BRANCHES.find(b => b.id === branchId);
     if (branch?.isClinic) return false;
     const cell = schedule[day][branchId];
     if (cell.receptionists.length > 0) return false;
-    // If there's a nurse who can work alone, receptionist is optional
     const hasAloneNurse = cell.nurses.some(n => {
       const s = staff.find(st => st.id === n.id);
       return s?.canWorkAlone;
@@ -112,10 +173,10 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     return !hasAloneNurse;
   }
 
-  // Calculate date strings for each day of the week (using local dates, not UTC)
+  // Calculate date strings for each day of the week
   const dateLookup = {};
   if (weekStartDate) {
-    const start = new Date(weekStartDate + 'T12:00:00'); // Noon to avoid timezone edge cases
+    const start = new Date(weekStartDate + 'T12:00:00');
     DAYS_OF_WEEK.forEach((day, index) => {
       const d = new Date(start);
       d.setDate(d.getDate() + index);
@@ -131,6 +192,7 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   const clinicBranch = BRANCHES.find(b => b.isClinic);
 
   // === STEP 1: Handle shift requests for priority staff ===
+  // NOTE: alsoMainBranch 'clinic' is SKIPPED here — clinic is lowest priority (filled in Step 6/7)
   const priorityStaff = staff.filter(s => s.priority);
   priorityStaff.forEach(member => {
     const requests = shiftRequests?.[member.id] || {};
@@ -155,15 +217,16 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
         if (placed) return;
       }
 
-      // Try alsoMainBranch (e.g. clinic for Dinah/Ntombi)
-      if (member.alsoMainBranch && isBranchOpen(member.alsoMainBranch, day)) {
+      // Try alsoMainBranch — but SKIP clinic (clinic is filled later as overflow)
+      if (member.alsoMainBranch && member.alsoMainBranch !== 'clinic' && isBranchOpen(member.alsoMainBranch, day)) {
         const placed = assign(member, member.alsoMainBranch, day);
         if (placed) return;
       }
 
-      // Try any other available branch that still needs a nurse
+      // Try any other available branch that still needs a nurse (exclude clinic)
       for (const branchId of member.branches) {
         if (branchId === targetBranch || branchId === member.alsoMainBranch) continue;
+        if (branchId === 'clinic') continue;
         if (!isBranchOpen(branchId, day)) continue;
         if (branchNeedsNurse(branchId, day)) {
           const placed = assign(member, branchId, day);
@@ -174,7 +237,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   });
 
   // === STEP 2: Place fixed-day, fixed-branch staff ===
-  // Jaco: Parkview Fri/Sat/Sun
   const jaco = staff.find(s => s.id === 'jaco');
   if (jaco) {
     ['Friday', 'Saturday', 'Sunday'].forEach(day => {
@@ -185,7 +247,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     });
   }
 
-  // Trinity: Parkview weekends only
   const trinity = staff.find(s => s.id === 'trinity');
   if (trinity) {
     ['Saturday', 'Sunday'].forEach(day => {
@@ -196,7 +257,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     });
   }
 
-  // Nomonde: weekends only, must have both days or none
   const nomonde = staff.find(s => s.id === 'nomonde');
   if (nomonde) {
     const satDate = dateLookup['Saturday'] || 'Saturday';
@@ -205,7 +265,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     const sunAvail = isAvailable(nomonde, 'Sunday', sunDate);
 
     if (satAvail && sunAvail) {
-      // Find a branch that needs a receptionist on both days
       for (const branch of mainBranches) {
         const needsSat = branchNeedsReceptionist(branch.id, 'Saturday') && isBranchOpen(branch.id, 'Saturday');
         const needsSun = branchNeedsReceptionist(branch.id, 'Sunday') && isBranchOpen(branch.id, 'Sunday');
@@ -221,33 +280,28 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   }
 
   // === STEP 3: Fill nurse gaps at main branches ===
-  const nurses = staff.filter(s => s.role === 'nurse' && !s.priority);
+  const nursesNonPriority = staff.filter(s => s.role === 'nurse' && !s.priority);
 
   DAYS_OF_WEEK.forEach(day => {
     mainBranches.forEach(branch => {
       if (!branchNeedsNurse(branch.id, day)) return;
 
-      // Find available nurses for this branch, prefer those with it as main branch
-      const candidates = nurses
+      const candidates = nursesNonPriority
         .filter(n => {
           const dateStr = dateLookup[day] || day;
           if (!isAvailable(n, day, dateStr)) return false;
           if (isAssignedOnDay(n.id, day)) return false;
-          // Check if this is a regular or last-resort branch
           if (n.branches.includes(branch.id)) return true;
           if (n.lastResortBranches?.includes(branch.id)) return true;
           return false;
         })
         .sort((a, b) => {
-          // Prefer main branch match
           const aMain = a.mainBranch === branch.id ? 0 : 1;
           const bMain = b.mainBranch === branch.id ? 0 : 1;
           if (aMain !== bMain) return aMain - bMain;
-          // Prefer regular branch over last-resort
           const aRegular = a.branches.includes(branch.id) ? 0 : 1;
           const bRegular = b.branches.includes(branch.id) ? 0 : 1;
           if (aRegular !== bRegular) return aRegular - bRegular;
-          // Prefer those with fewer assignments this week (spread work)
           return countWeeklyShifts(a.id) - countWeeklyShifts(b.id);
         });
 
@@ -258,17 +312,13 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   });
 
   // === STEP 4: Fill receptionist slots at ALL main branches ===
-  // Always try to assign a receptionist even if nurse can work alone —
-  // "can work alone" is a fallback, not the preference.
   const receptionists = staff.filter(s => s.role === 'receptionist' && s.id !== 'nomonde');
 
   DAYS_OF_WEEK.forEach(day => {
     mainBranches.forEach(branch => {
       if (!isBranchOpen(branch.id, day)) return;
-      // Skip if clinic (nurse only)
       const branchData = BRANCHES.find(b => b.id === branch.id);
       if (branchData?.isClinic) return;
-      // Skip if already has a receptionist
       const cell = schedule[day][branch.id];
       if (cell.receptionists.length > 0) return;
 
@@ -281,15 +331,12 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
           return true;
         })
         .sort((a, b) => {
-          // Prefer main branch match
           const aMain = a.mainBranch === branch.id ? 0 : 1;
           const bMain = b.mainBranch === branch.id ? 0 : 1;
           if (aMain !== bMain) return aMain - bMain;
-          // Permanent staff get priority to accumulate hours
           const aPerm = a.employmentType === 'permanent' ? 0 : 1;
           const bPerm = b.employmentType === 'permanent' ? 0 : 1;
           if (aPerm !== bPerm) return aPerm - bPerm;
-          // Prefer those with fewer assignments (spread work)
           return countWeeklyShifts(a.id) - countWeeklyShifts(b.id);
         });
 
@@ -309,12 +356,9 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
         const dateStr = dateLookup[day] || day;
         if (!isAvailable(ian, day, dateStr)) continue;
         if (isAssignedOnDay('ian', day)) continue;
-
-        // Find a branch that could use an extra receptionist or needs one
         for (const branch of mainBranches) {
           if (!isBranchOpen(branch.id, day)) continue;
           if (!ian.branches.includes(branch.id)) continue;
-          // Either needs a receptionist or could use extra coverage
           if (branchNeedsReceptionist(branch.id, day)) {
             assign(ian, branch.id, day);
             ianShifts++;
@@ -322,7 +366,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
           }
         }
       }
-      // If still not enough, add as extra coverage
       if (ianShifts < 4) {
         for (const day of DAYS_OF_WEEK) {
           if (ianShifts >= 4) break;
@@ -341,23 +384,120 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
     }
   }
 
-  // === STEP 6: Fill clinic if capacity allows ===
+  // === STEP 6: Saturday split-shift — Clinic nurse works morning clinic + afternoon main branch ===
+  if (clinicBranch && isBranchOpen('clinic', 'Saturday')) {
+    const clinicCell = schedule['Saturday']['clinic'];
+    const clinicHrs = clinicBranch.hours['Saturday'];
+
+    // Only proceed if clinic doesn't already have a nurse
+    if (clinicCell.nurses.length === 0) {
+      const parkviewCell = schedule['Saturday']['parkview'];
+      const parkviewHrs = BRANCHES.find(b => b.id === 'parkview')?.hours['Saturday'];
+
+      // Strategy: find a nurse assigned to Parkview Saturday who can also work at clinic
+      // Prefer those with alsoMainBranch: 'clinic' (Dinah/Ntombi)
+      let splitNurse = null;
+      let splitNurseIdx = -1;
+
+      if (parkviewCell) {
+        const candidates = parkviewCell.nurses
+          .map((n, idx) => ({ ...n, idx, staffData: staff.find(s => s.id === n.id) }))
+          .filter(n => n.staffData?.branches.includes('clinic'))
+          .sort((a, b) => {
+            const aClinic = a.staffData?.alsoMainBranch === 'clinic' ? 0 : 1;
+            const bClinic = b.staffData?.alsoMainBranch === 'clinic' ? 0 : 1;
+            return aClinic - bClinic;
+          });
+
+        if (candidates.length > 0) {
+          splitNurse = candidates[0];
+          splitNurseIdx = candidates[0].idx;
+        }
+      }
+
+      if (splitNurse) {
+        // Remove the nurse from Parkview (full-day assignment)
+        parkviewCell.nurses.splice(splitNurseIdx, 1);
+
+        // Assign to Clinic morning
+        clinicCell.nurses.push({
+          id: splitNurse.id, name: splitNurse.name, locked: false,
+          shiftStart: clinicHrs.open, shiftEnd: clinicHrs.close, // 08:00 - 13:00
+        });
+
+        // Assign back to Parkview afternoon
+        parkviewCell.nurses.push({
+          id: splitNurse.id, name: splitNurse.name, locked: false,
+          shiftStart: SAT_SPLIT, shiftEnd: parkviewHrs?.close || '17:00', // 13:00 - 17:00
+        });
+
+        // Set the remaining Parkview nurse(s) to morning
+        parkviewCell.nurses.forEach(n => {
+          if (n.id !== splitNurse.id && !n.shiftStart) {
+            n.shiftStart = parkviewHrs?.open || '09:00';
+            n.shiftEnd = SAT_SPLIT; // 09:00 - 13:00
+          }
+        });
+      } else {
+        // No Parkview nurse can split — try unassigned nurses who can work at clinic
+        const dateStr = dateLookup['Saturday'] || 'Saturday';
+        const unassignedClinic = staff
+          .filter(n => {
+            if (n.role !== 'nurse') return false;
+            if (!isAvailable(n, 'Saturday', dateStr)) return false;
+            if (isAssignedOnDay(n.id, 'Saturday')) return false;
+            if (!n.branches.includes('clinic')) return false;
+            return true;
+          })
+          .sort((a, b) => {
+            const aClinic = a.alsoMainBranch === 'clinic' ? 0 : 1;
+            const bClinic = b.alsoMainBranch === 'clinic' ? 0 : 1;
+            return aClinic - bClinic;
+          });
+
+        if (unassignedClinic.length > 0) {
+          const nurse = unassignedClinic[0];
+          // Assign to clinic morning only
+          clinicCell.nurses.push({
+            id: nurse.id, name: nurse.name, locked: false,
+            shiftStart: clinicHrs.open, shiftEnd: clinicHrs.close,
+          });
+
+          // Also assign to Parkview afternoon if it needs coverage and nurse can work there
+          if (parkviewCell && nurse.branches.includes('parkview')) {
+            const maxNurses = getMaxNurses('parkview', 'Saturday');
+            if (parkviewCell.nurses.length < maxNurses) {
+              parkviewCell.nurses.push({
+                id: nurse.id, name: nurse.name, locked: false,
+                shiftStart: SAT_SPLIT, shiftEnd: parkviewHrs?.close || '17:00',
+              });
+              // Set existing Parkview nurse(s) to morning
+              parkviewCell.nurses.forEach(n => {
+                if (n.id !== nurse.id && !n.shiftStart) {
+                  n.shiftStart = parkviewHrs?.open || '09:00';
+                  n.shiftEnd = SAT_SPLIT;
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // === STEP 7: Fill clinic on NON-Saturday days if capacity allows ===
   if (clinicBranch) {
     DAYS_OF_WEEK.forEach(day => {
+      if (day === 'Saturday') return; // Already handled in Step 6
       if (!isBranchOpen('clinic', day)) return;
 
-      // Check if all main branches are covered first
       const allMainCovered = mainBranches.every(b => {
         if (!isBranchOpen(b.id, day)) return true;
         return !branchNeedsNurse(b.id, day);
       });
-
       if (!allMainCovered) return;
-
-      // Check if clinic already has a nurse
       if (!branchNeedsNurse('clinic', day)) return;
 
-      // Find available nurse for clinic - prefer Dinah/Ntombi
       const clinicCandidates = staff
         .filter(n => {
           if (n.role !== 'nurse') return false;
@@ -368,7 +508,6 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
           return true;
         })
         .sort((a, b) => {
-          // Prefer Dinah/Ntombi for clinic
           const aClinic = (a.alsoMainBranch === 'clinic') ? 0 : 1;
           const bClinic = (b.alsoMainBranch === 'clinic') ? 0 : 1;
           return aClinic - bClinic;
@@ -383,6 +522,9 @@ export function autoSchedule(staff, existingSchedule, availability, shiftRequest
   return schedule;
 }
 
+// Export helpers for use in UI and validation
+export { timeToMinutes, timesOverlap, hoursBetween, SAT_SPLIT };
+
 /**
  * Validate a schedule and return warnings/errors
  */
@@ -393,7 +535,7 @@ export function validateSchedule(schedule, staff) {
   DAYS_OF_WEEK.forEach(day => {
     BRANCHES.forEach(branch => {
       if (!isBranchOpen(branch.id, day)) return;
-      if (branch.isClinic) return; // Clinic is optional — nurse only, no receptionist needed
+      if (branch.isClinic) return;
 
       const cell = schedule[day]?.[branch.id];
       const nurses = cell?.nurses || [];
@@ -403,13 +545,11 @@ export function validateSchedule(schedule, staff) {
         errors.push(`${branch.name} has no nurse on ${day}`);
       }
 
-      // Check for too many nurses
       if (cell && nurses.length > maxNurses) {
         warnings.push(`${branch.name} has ${nurses.length} nurses on ${day} (max ${maxNurses})`);
       }
 
       if (cell && receptionists.length === 0) {
-        // Check if there's a nurse who can work alone
         const hasAloneNurse = cell?.nurses?.some(n => {
           const s = staff.find(st => st.id === n.id);
           return s?.canWorkAlone;
@@ -422,18 +562,33 @@ export function validateSchedule(schedule, staff) {
       }
     });
 
-    // Check for double-booking
-    const assignedToday = {};
+    // Check for double-booking (time-aware on Saturday)
+    const staffAssignments = {}; // staffId -> [{ branch, start, end }]
     BRANCHES.forEach(branch => {
       const cell = schedule[day]?.[branch.id];
       if (!cell) return;
+      const hrs = branch.hours[day];
       [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
-        if (assignedToday[person.id]) {
-          errors.push(`${person.name} is double-booked on ${day}: ${assignedToday[person.id]} and ${branch.name}`);
-        }
-        assignedToday[person.id] = branch.name;
+        const start = person.shiftStart || hrs?.open || '09:00';
+        const end = person.shiftEnd || hrs?.close || '17:00';
+        if (!staffAssignments[person.id]) staffAssignments[person.id] = [];
+        staffAssignments[person.id].push({ branch: branch.name, start, end });
       });
     });
+
+    // Check each staff for overlapping assignments
+    for (const [staffId, assignments] of Object.entries(staffAssignments)) {
+      if (assignments.length <= 1) continue;
+      for (let i = 0; i < assignments.length; i++) {
+        for (let j = i + 1; j < assignments.length; j++) {
+          const a = assignments[i], b = assignments[j];
+          if (timesOverlap(a.start, a.end, b.start, b.end)) {
+            const name = staff.find(s => s.id === staffId)?.name || staffId;
+            errors.push(`${name} has overlapping shifts on ${day}: ${a.branch} (${a.start}-${a.end}) and ${b.branch} (${b.start}-${b.end})`);
+          }
+        }
+      }
+    }
   });
 
   // Check Ian's minimum shifts
@@ -478,10 +633,16 @@ export function calculateWeeklyHours(schedule, staff) {
     BRANCHES.forEach(branch => {
       const cell = schedule[day]?.[branch.id];
       if (!cell) return;
-      const shiftHrs = getShiftHours(branch.id, day);
+      const defaultHrs = getShiftHours(branch.id, day);
+      const branchHours = branch.hours[day];
 
       [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
         if (hours[person.id]) {
+          // Use custom shift times if present, otherwise branch default
+          let shiftHrs = defaultHrs;
+          if (person.shiftStart && person.shiftEnd) {
+            shiftHrs = hoursBetween(person.shiftStart, person.shiftEnd);
+          }
           hours[person.id].total += shiftHrs;
           hours[person.id].shifts += 1;
           hours[person.id].details.push({ day, branch: branch.name, hours: shiftHrs });

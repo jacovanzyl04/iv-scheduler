@@ -21,6 +21,7 @@ const BORDER = {
 
 // Center alignment for all cells
 const CENTER = { horizontal: 'center', vertical: 'center' };
+const CENTER_WRAP = { horizontal: 'center', vertical: 'center', wrapText: true };
 
 function formatTime(timeStr) {
   if (!timeStr) return '';
@@ -31,6 +32,24 @@ function getTimeRange(branch, day) {
   const hrs = branch.hours[day];
   if (!hrs) return '';
   return `${formatTime(hrs.open)} - ${formatTime(hrs.close)}`;
+}
+
+// Get time range for an individual assignment (uses custom times if present, else branch default)
+function getAssignmentTimeRange(assignment, branch, day) {
+  if (assignment.shiftStart && assignment.shiftEnd) {
+    return `${formatTime(assignment.shiftStart)} - ${formatTime(assignment.shiftEnd)}`;
+  }
+  return getTimeRange(branch, day);
+}
+
+// Calculate hours from an assignment (custom or branch default)
+function getAssignmentHours(assignment, branch, day) {
+  if (assignment.shiftStart && assignment.shiftEnd) {
+    const start = parseInt(assignment.shiftStart.split(':')[0], 10);
+    const end = parseInt(assignment.shiftEnd.split(':')[0], 10);
+    return end - start;
+  }
+  return branch.hours[day]?.shiftHours || 0;
 }
 
 function getDayDate(weekStartDate, dayName) {
@@ -88,9 +107,27 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
       const sc = schedule[day]?.[branch.id];
       const nurses = sc?.nurses || [];
       const recs = sc?.receptionists || [];
-      const nurseStr = nurses.map(n => n.name).join(', ');
-      const recStr = recs.map(rec => rec.name).join(', ');
-      const timeRange = hrs ? getTimeRange(branch, day) : '';
+
+      // Build per-assignment names and times (supports split shifts)
+      const hasCustomNurseTimes = nurses.some(n => n.shiftStart && n.shiftEnd);
+      const hasCustomRecTimes = recs.some(r => r.shiftStart && r.shiftEnd);
+
+      const nurseStr = nurses.map(n => n.name).join(hasCustomNurseTimes ? '\n' : ', ');
+      const nurseTimesStr = nurses.length > 0
+        ? (hasCustomNurseTimes
+          ? nurses.map(n => getAssignmentTimeRange(n, branch, day)).join('\n')
+          : (hrs ? getTimeRange(branch, day) : ''))
+        : '';
+
+      const recStr = recs.map(r => r.name).join(hasCustomRecTimes ? '\n' : ', ');
+      const recTimesStr = recs.length > 0
+        ? (hasCustomRecTimes
+          ? recs.map(r => getAssignmentTimeRange(r, branch, day)).join('\n')
+          : (hrs ? getTimeRange(branch, day) : ''))
+        : '';
+
+      const nurseAlign = hasCustomNurseTimes ? CENTER_WRAP : CENTER;
+      const recAlign = hasCustomRecTimes ? CENTER_WRAP : CENTER;
 
       // Day column — bold, size 12
       ws[XLSX.utils.encode_cell({ r: row, c: 0 })] = makeCell(DAY_ABBREV[day], {
@@ -106,31 +143,31 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
         border: BORDER,
       });
 
-      // RN column — size 11, staff color
+      // RN column — size 11, staff color (first nurse's color; multiline if split shifts)
       ws[XLSX.utils.encode_cell({ r: row, c: 2 })] = makeCell(nurseStr, {
         font: { sz: 11, color: { rgb: nurses.length > 0 ? getStaffHex(nurses[0].id, staff) : '000000' } },
-        alignment: CENTER,
+        alignment: nurseAlign,
         border: BORDER,
       });
 
       // Nurse Times column — size 9
-      ws[XLSX.utils.encode_cell({ r: row, c: 3 })] = makeCell(nurseStr ? timeRange : '', {
+      ws[XLSX.utils.encode_cell({ r: row, c: 3 })] = makeCell(nurseTimesStr, {
         font: { sz: 9, color: { rgb: '000000' } },
-        alignment: CENTER,
+        alignment: nurseAlign,
         border: BORDER,
       });
 
       // Receptionist column — size 11, staff color
       ws[XLSX.utils.encode_cell({ r: row, c: 4 })] = makeCell(recStr, {
         font: { sz: 11, color: { rgb: recs.length > 0 ? getStaffHex(recs[0].id, staff) : '000000' } },
-        alignment: CENTER,
+        alignment: recAlign,
         border: BORDER,
       });
 
       // Receptionist Times column — size 9
-      ws[XLSX.utils.encode_cell({ r: row, c: 5 })] = makeCell(recStr ? timeRange : '', {
+      ws[XLSX.utils.encode_cell({ r: row, c: 5 })] = makeCell(recTimesStr, {
         font: { sz: 9, color: { rgb: '000000' } },
-        alignment: CENTER,
+        alignment: recAlign,
         border: BORDER,
       });
 
@@ -163,16 +200,19 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
     let totalHours = 0;
 
     DAYS_OF_WEEK.forEach(day => {
-      let assignment = '-';
+      const branches = [];
       BRANCHES.forEach(b => {
         const cell = schedule[day]?.[b.id];
-        if (cell?.nurses?.some(nurse => nurse.id === member.id) || cell?.receptionists?.some(rec => rec.id === member.id)) {
-          assignment = b.name;
+        const nurseMatch = cell?.nurses?.find(nurse => nurse.id === member.id);
+        const recMatch = cell?.receptionists?.find(rec => rec.id === member.id);
+        const match = nurseMatch || recMatch;
+        if (match) {
+          branches.push(b.name);
           totalShifts++;
-          totalHours += b.hours[day]?.shiftHours || 0;
+          totalHours += getAssignmentHours(match, b, day);
         }
       });
-      dataRow.push(assignment);
+      dataRow.push(branches.length > 0 ? branches.join(' + ') : '-');
     });
 
     dataRow.push(totalShifts);

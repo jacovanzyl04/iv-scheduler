@@ -88,6 +88,7 @@ export default function App() {
   }, []);
 
   // Firebase drops empty arrays — normalize schedule cells to always have nurses/receptionists
+  // Preserves shiftStart/shiftEnd on individual assignments (for Saturday split shifts)
   function normalizeSchedules(data) {
     if (!data || typeof data !== 'object') return {};
     const result = {};
@@ -98,10 +99,19 @@ export default function App() {
         if (!dayData || typeof dayData !== 'object') { result[weekKey][day] = dayData; continue; }
         result[weekKey][day] = {};
         for (const [branchId, cell] of Object.entries(dayData)) {
-          result[weekKey][day][branchId] = {
-            nurses: Array.isArray(cell?.nurses) ? cell.nurses : [],
-            receptionists: Array.isArray(cell?.receptionists) ? cell.receptionists : [],
-          };
+          const nurses = Array.isArray(cell?.nurses) ? cell.nurses.map(n => {
+            const norm = { id: n.id, name: n.name, locked: !!n.locked };
+            if (n.shiftStart) norm.shiftStart = n.shiftStart;
+            if (n.shiftEnd) norm.shiftEnd = n.shiftEnd;
+            return norm;
+          }) : [];
+          const receptionists = Array.isArray(cell?.receptionists) ? cell.receptionists.map(r => {
+            const norm = { id: r.id, name: r.name, locked: !!r.locked };
+            if (r.shiftStart) norm.shiftStart = r.shiftStart;
+            if (r.shiftEnd) norm.shiftEnd = r.shiftEnd;
+            return norm;
+          }) : [];
+          result[weekKey][day][branchId] = { nurses, receptionists };
         }
       }
     }
