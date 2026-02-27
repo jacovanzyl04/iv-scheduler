@@ -1,16 +1,30 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import { BRANCHES, DAYS_OF_WEEK } from '../data/initialData';
 
-// Order days starting from Sunday to match paper format
+// Staff color hex values (no '#' prefix, for xlsx-js-style)
+const STAFF_COLOR_HEX = {
+  red: 'EF4444', orange: 'F97316', amber: 'F59E0B', green: '22C55E',
+  teal: '14B8A6', blue: '3B82F6', purple: '8B5CF6', pink: 'EC4899',
+};
+
 const EXPORT_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_ABBREV = { Sunday: 'Sun', Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
 
+// Medium border style for all cells
+const BORDER = {
+  top: { style: 'medium', color: { rgb: '000000' } },
+  bottom: { style: 'medium', color: { rgb: '000000' } },
+  left: { style: 'medium', color: { rgb: '000000' } },
+  right: { style: 'medium', color: { rgb: '000000' } },
+};
+
+// Center alignment for all cells
+const CENTER = { horizontal: 'center', vertical: 'center' };
+
 function formatTime(timeStr) {
   if (!timeStr) return '';
-  // '09:00' → '9', '18:00' → '18', '13:00' → '13'
-  const hour = parseInt(timeStr.split(':')[0], 10);
-  return String(hour);
+  return String(parseInt(timeStr.split(':')[0], 10));
 }
 
 function getTimeRange(branch, day) {
@@ -20,78 +34,131 @@ function getTimeRange(branch, day) {
 }
 
 function getDayDate(weekStartDate, dayName) {
-  // weekStartDate is a Monday date string like '2026-03-02'
   const monday = new Date(weekStartDate + 'T00:00:00');
-  const dayOffsets = {
-    Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3,
-    Friday: 4, Saturday: 5, Sunday: -1,
-  };
+  const dayOffsets = { Monday: 0, Tuesday: 1, Wednesday: 2, Thursday: 3, Friday: 4, Saturday: 5, Sunday: -1 };
   const d = new Date(monday);
   d.setDate(d.getDate() + dayOffsets[dayName]);
   return d.getDate();
 }
 
+function getStaffHex(staffId, staffList) {
+  const member = staffList.find(s => s.id === staffId);
+  return member?.color ? STAFF_COLOR_HEX[member.color] : '000000';
+}
+
+function makeCell(value, style) {
+  return { v: value, t: typeof value === 'number' ? 'n' : 's', s: style };
+}
+
 export function exportScheduleToExcel(schedule, weekStartDate, staff) {
   const wb = XLSX.utils.book_new();
 
-  // === Schedule Sheet (all branches on one sheet) ===
-  const data = [];
+  // === Schedule Sheet — built cell-by-cell for full styling ===
+  const ws = {};
+  const merges = [];
+  let row = 0;
 
-  BRANCHES.forEach((branch, branchIndex) => {
-    // Branch header
-    data.push([branch.name]);
-    // Column headers
-    data.push(['Day', 'Date', 'RN', 'Times', 'Receptionist', 'Times']);
+  BRANCHES.forEach((branch, bi) => {
+    // --- Branch header (merged across all 6 columns) ---
+    for (let c = 0; c < 6; c++) {
+      ws[XLSX.utils.encode_cell({ r: row, c })] = makeCell(c === 0 ? branch.name : '', {
+        font: { bold: true, sz: 14, color: { rgb: '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
+    }
+    merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 5 } });
+    row++;
 
-    // Data rows (Sun → Sat)
+    // --- Column headers (yellow background, bold) ---
+    ['Day', 'Date', 'RN', 'Times', 'Receptionist', 'Times'].forEach((h, c) => {
+      ws[XLSX.utils.encode_cell({ r: row, c })] = makeCell(h, {
+        font: { bold: true, sz: 11, color: { rgb: '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+        fill: { fgColor: { rgb: 'FFFF00' } },
+      });
+    });
+    row++;
+
+    // --- Data rows (Sun → Sat) ---
     EXPORT_DAYS.forEach(day => {
       const dateNum = getDayDate(weekStartDate, day);
       const hrs = branch.hours[day];
-      const cell = schedule[day]?.[branch.id];
+      const sc = schedule[day]?.[branch.id];
+      const nurses = sc?.nurses || [];
+      const recs = sc?.receptionists || [];
+      const nurseStr = nurses.map(n => n.name).join(', ');
+      const recStr = recs.map(rec => rec.name).join(', ');
+      const timeRange = hrs ? getTimeRange(branch, day) : '';
 
-      if (!hrs) {
-        // Branch closed on this day
-        data.push([DAY_ABBREV[day], dateNum, '', '', '', '']);
-      } else {
-        const nurses = cell?.nurses?.map(n => n.name).join(', ') || '';
-        const recs = cell?.receptionists?.map(r => r.name).join(', ') || '';
-        const timeRange = getTimeRange(branch, day);
-        const nurseTime = nurses ? timeRange : '';
-        const recTime = recs ? timeRange : '';
+      // Day column — bold, size 12
+      ws[XLSX.utils.encode_cell({ r: row, c: 0 })] = makeCell(DAY_ABBREV[day], {
+        font: { bold: true, sz: 12, color: { rgb: '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
 
-        data.push([DAY_ABBREV[day], dateNum, nurses, nurseTime, recs, recTime]);
-      }
+      // Date column — bold, size 12
+      ws[XLSX.utils.encode_cell({ r: row, c: 1 })] = makeCell(dateNum, {
+        font: { bold: true, sz: 12, color: { rgb: '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
+
+      // RN column — size 11, staff color
+      ws[XLSX.utils.encode_cell({ r: row, c: 2 })] = makeCell(nurseStr, {
+        font: { sz: 11, color: { rgb: nurses.length > 0 ? getStaffHex(nurses[0].id, staff) : '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
+
+      // Nurse Times column — size 9
+      ws[XLSX.utils.encode_cell({ r: row, c: 3 })] = makeCell(nurseStr ? timeRange : '', {
+        font: { sz: 9, color: { rgb: '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
+
+      // Receptionist column — size 11, staff color
+      ws[XLSX.utils.encode_cell({ r: row, c: 4 })] = makeCell(recStr, {
+        font: { sz: 11, color: { rgb: recs.length > 0 ? getStaffHex(recs[0].id, staff) : '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
+
+      // Receptionist Times column — size 9
+      ws[XLSX.utils.encode_cell({ r: row, c: 5 })] = makeCell(recStr ? timeRange : '', {
+        font: { sz: 9, color: { rgb: '000000' } },
+        alignment: CENTER,
+        border: BORDER,
+      });
+
+      row++;
     });
 
     // Spacing between branches
-    if (branchIndex < BRANCHES.length - 1) {
-      data.push([]);
-      data.push([]);
-    }
+    if (bi < BRANCHES.length - 1) row += 2;
   });
 
-  const ws1 = XLSX.utils.aoa_to_sheet(data);
-
-  // Set column widths
-  ws1['!cols'] = [
-    { wch: 6 },   // Day
-    { wch: 6 },   // Date
-    { wch: 18 },  // RN
-    { wch: 10 },  // Times
-    { wch: 18 },  // Receptionist
-    { wch: 10 },  // Times
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: row - 1, c: 5 } });
+  ws['!merges'] = merges;
+  ws['!cols'] = [
+    { wch: 8 },   // Day
+    { wch: 8 },   // Date
+    { wch: 20 },  // RN
+    { wch: 12 },  // Times
+    { wch: 20 },  // Receptionist
+    { wch: 12 },  // Times
   ];
 
-  // Bold the branch name rows and header rows
-  // (xlsx-js doesn't support styling in the free version, but the structure is correct)
+  XLSX.utils.book_append_sheet(wb, ws, 'Weekly Schedule');
 
-  XLSX.utils.book_append_sheet(wb, ws1, 'Weekly Schedule');
-
-  // === Staff Hours Sheet (unchanged) ===
+  // === Staff Hours Sheet ===
   const hoursData = [['Staff Member', 'Role', 'Type', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Total Shifts', 'Total Hours']];
 
   staff.forEach(member => {
-    const row = [member.name, member.role, member.employmentType];
+    const dataRow = [member.name, member.role, member.employmentType];
     let totalShifts = 0;
     let totalHours = 0;
 
@@ -99,18 +166,18 @@ export function exportScheduleToExcel(schedule, weekStartDate, staff) {
       let assignment = '-';
       BRANCHES.forEach(b => {
         const cell = schedule[day]?.[b.id];
-        if (cell?.nurses?.some(n => n.id === member.id) || cell?.receptionists?.some(r => r.id === member.id)) {
+        if (cell?.nurses?.some(nurse => nurse.id === member.id) || cell?.receptionists?.some(rec => rec.id === member.id)) {
           assignment = b.name;
           totalShifts++;
           totalHours += b.hours[day]?.shiftHours || 0;
         }
       });
-      row.push(assignment);
+      dataRow.push(assignment);
     });
 
-    row.push(totalShifts);
-    row.push(totalHours);
-    hoursData.push(row);
+    dataRow.push(totalShifts);
+    dataRow.push(totalHours);
+    hoursData.push(dataRow);
   });
 
   const ws2 = XLSX.utils.aoa_to_sheet(hoursData);
