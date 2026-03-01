@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, getShiftHours, getLunchDeduction, isScheduleRole } from '../data/initialData';
 import { hoursBetween } from '../utils/scheduler';
 import {
@@ -8,10 +8,20 @@ import {
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
-import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 
 export default function MonthlyHours({ staff, schedules }) {
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
+  const [expandedStaff, setExpandedStaff] = useState(new Set());
+
+  const toggleExpanded = (staffId) => {
+    setExpandedStaff(prev => {
+      const next = new Set(prev);
+      if (next.has(staffId)) next.delete(staffId);
+      else next.add(staffId);
+      return next;
+    });
+  };
 
   const cycleRange = useMemo(() => getPayCycleRange(currentCycle), [currentCycle]);
   const weekKeys = useMemo(() => getWeekKeysForPayCycle(currentCycle), [currentCycle]);
@@ -37,6 +47,12 @@ export default function MonthlyHours({ staff, schedules }) {
         totalHours: 0,
         totalShifts: 0,
         weeklyBreakdown: [],
+        weekdayCount: 0,
+        weekdayHours: 0,
+        saturdayCount: 0,
+        saturdayHours: 0,
+        sundayCount: 0,
+        sundayHours: 0,
       };
     });
 
@@ -85,11 +101,24 @@ export default function MonthlyHours({ staff, schedules }) {
           });
         });
 
-        // Apply lunch deduction per person (one per day)
-        Object.entries(dayShifts).forEach(([personId, data]) => {
-          const lunch = getLunchDeduction(day, data.branches);
-          weekHours[personId].hours += data.totalHours - lunch;
-          weekHours[personId].shifts += data.branches.length;
+        // Apply lunch deduction per person (one per day) and track day-type counts
+        Object.entries(dayShifts).forEach(([personId, shiftData]) => {
+          const lunch = getLunchDeduction(day, shiftData.branches);
+          const netHours = shiftData.totalHours - lunch;
+          weekHours[personId].hours += netHours;
+          weekHours[personId].shifts += shiftData.branches.length;
+
+          // Track weekday/Saturday/Sunday breakdown
+          if (day === 'Saturday') {
+            data[personId].saturdayCount += 1;
+            data[personId].saturdayHours += netHours;
+          } else if (day === 'Sunday') {
+            data[personId].sundayCount += 1;
+            data[personId].sundayHours += netHours;
+          } else {
+            data[personId].weekdayCount += 1;
+            data[personId].weekdayHours += netHours;
+          }
         });
       });
 
@@ -115,71 +144,106 @@ export default function MonthlyHours({ staff, schedules }) {
     const progress = target > 0 ? Math.round((info.totalHours / target) * 100) : null;
     const isOver = progress !== null && progress > 100;
     const isUnder = progress !== null && progress < 80;
+    const isExpanded = expandedStaff.has(member.id);
+    const colCount = 5 + weekKeys.length;
 
     return (
-      <tr key={member.id} className="border-b border-gray-100 hover:bg-gray-50">
-        <td className="p-3">
-          <div className="font-medium text-gray-800 text-sm">{info.name}</div>
-          <div className="flex gap-1.5 mt-0.5">
-            <span className={`text-xs px-1.5 py-0.5 rounded ${info.role === 'nurse' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}`}>
-              {info.role}
-            </span>
-            <span className={`text-xs px-1.5 py-0.5 rounded ${info.employmentType === 'permanent' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-600'}`}>
-              {info.employmentType}
-            </span>
-          </div>
-        </td>
-        <td className="p-3 text-center">
-          <span className="text-lg font-bold text-gray-800">{info.totalShifts}</span>
-        </td>
-        <td className="p-3 text-center">
-          <span className="text-lg font-bold text-gray-800">{info.totalHours}h</span>
-        </td>
-        <td className="p-3 text-center">
-          {target > 0 ? (
-            <span className="text-sm text-gray-500">{target}h</span>
-          ) : target === 0 && info.employmentType === 'permanent' ? (
-            <span className="text-xs text-amber-500 italic">TBD</span>
-          ) : (
-            <span className="text-xs text-gray-400">—</span>
-          )}
-        </td>
-        <td className="p-3">
-          {progress !== null ? (
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      isOver ? 'bg-red-500' : isUnder ? 'bg-amber-500' : 'bg-green-500'
-                    }`}
-                    style={{ width: `${Math.min(progress, 100)}%` }}
-                  />
+      <Fragment key={member.id}>
+        <tr
+          className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer select-none"
+          onClick={() => toggleExpanded(member.id)}
+        >
+          <td className="p-3">
+            <div className="flex items-center gap-1.5">
+              <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+              <div>
+                <div className="font-medium text-gray-800 text-sm">{info.name}</div>
+                <div className="flex gap-1.5 mt-0.5">
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${info.role === 'nurse' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}`}>
+                    {info.role}
+                  </span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${info.employmentType === 'permanent' ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-600'}`}>
+                    {info.employmentType}
+                  </span>
                 </div>
-                <span className={`text-xs font-medium ${isOver ? 'text-red-600' : isUnder ? 'text-amber-600' : 'text-green-600'}`}>
-                  {progress}%
-                </span>
-              </div>
-              <div className="flex items-center gap-1 mt-0.5">
-                {isOver ? (
-                  <><TrendingUp className="w-3 h-3 text-red-500" /><span className="text-xs text-red-500">{info.totalHours - target}h over</span></>
-                ) : progress === 100 ? (
-                  <><Minus className="w-3 h-3 text-green-500" /><span className="text-xs text-green-500">On target</span></>
-                ) : (
-                  <><TrendingDown className="w-3 h-3 text-amber-500" /><span className="text-xs text-amber-500">{target - info.totalHours}h remaining</span></>
-                )}
               </div>
             </div>
-          ) : (
-            <span className="text-xs text-gray-400">—</span>
-          )}
-        </td>
-        {info.weeklyBreakdown.map((week, i) => (
-          <td key={i} className="p-3 text-center text-sm text-gray-600">
-            {week.hours > 0 ? `${week.hours}h` : <span className="text-gray-300">—</span>}
           </td>
-        ))}
-      </tr>
+          <td className="p-3 text-center">
+            <span className="text-lg font-bold text-gray-800">{info.totalShifts}</span>
+          </td>
+          <td className="p-3 text-center">
+            <span className="text-lg font-bold text-gray-800">{info.totalHours}h</span>
+          </td>
+          <td className="p-3 text-center">
+            {target > 0 ? (
+              <span className="text-sm text-gray-500">{target}h</span>
+            ) : target === 0 && info.employmentType === 'permanent' ? (
+              <span className="text-xs text-amber-500 italic">TBD</span>
+            ) : (
+              <span className="text-xs text-gray-400">—</span>
+            )}
+          </td>
+          <td className="p-3">
+            {progress !== null ? (
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        isOver ? 'bg-red-500' : isUnder ? 'bg-amber-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-medium ${isOver ? 'text-red-600' : isUnder ? 'text-amber-600' : 'text-green-600'}`}>
+                    {progress}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {isOver ? (
+                    <><TrendingUp className="w-3 h-3 text-red-500" /><span className="text-xs text-red-500">{info.totalHours - target}h over</span></>
+                  ) : progress === 100 ? (
+                    <><Minus className="w-3 h-3 text-green-500" /><span className="text-xs text-green-500">On target</span></>
+                  ) : (
+                    <><TrendingDown className="w-3 h-3 text-amber-500" /><span className="text-xs text-amber-500">{target - info.totalHours}h remaining</span></>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-400">—</span>
+            )}
+          </td>
+          {info.weeklyBreakdown.map((week, i) => (
+            <td key={i} className="p-3 text-center text-sm text-gray-600">
+              {week.hours > 0 ? `${week.hours}h` : <span className="text-gray-300">—</span>}
+            </td>
+          ))}
+        </tr>
+        {isExpanded && (
+          <tr className="border-b border-gray-100">
+            <td colSpan={colCount} className="px-3 py-3 bg-gray-50/70">
+              <div className="ml-6 grid grid-cols-3 gap-3 max-w-lg">
+                <div className="bg-white rounded-lg border p-3 text-center">
+                  <div className="text-xs text-gray-500 mb-1">Weekdays <span className="text-gray-400">(Mon–Fri)</span></div>
+                  <div className="text-lg font-bold text-gray-800">{info.weekdayCount} <span className="text-sm font-normal text-gray-500">{info.weekdayCount === 1 ? 'day' : 'days'}</span></div>
+                  <div className="text-sm text-gray-500">{info.weekdayHours}h</div>
+                </div>
+                <div className="bg-white rounded-lg border p-3 text-center">
+                  <div className="text-xs text-gray-500 mb-1">Saturdays</div>
+                  <div className="text-lg font-bold text-gray-800">{info.saturdayCount} <span className="text-sm font-normal text-gray-500">{info.saturdayCount === 1 ? 'day' : 'days'}</span></div>
+                  <div className="text-sm text-gray-500">{info.saturdayHours}h</div>
+                </div>
+                <div className="bg-white rounded-lg border p-3 text-center">
+                  <div className="text-xs text-gray-500 mb-1">Sundays</div>
+                  <div className="text-lg font-bold text-gray-800">{info.sundayCount} <span className="text-sm font-normal text-gray-500">{info.sundayCount === 1 ? 'day' : 'days'}</span></div>
+                  <div className="text-sm text-gray-500">{info.sundayHours}h</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
     );
   };
 
