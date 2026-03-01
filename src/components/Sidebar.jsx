@@ -1,4 +1,4 @@
-import { Calendar, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets } from 'lucide-react';
+import { Calendar, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -6,6 +6,7 @@ const navItems = [
   { id: 'staff', label: 'Staff', icon: Users },
   { id: 'availability', label: 'Availability', icon: ClipboardList },
   { id: 'hours', label: 'Monthly Hours', icon: Clock },
+  { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
 ];
 
 export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen }) {

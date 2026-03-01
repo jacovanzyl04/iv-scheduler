@@ -183,6 +183,7 @@ shiftRequests: {
 │ 👥 Staff            │
 │ 📋 Availability     │
 │ ⏱  Monthly Hours    │
+│ ✓  Timesheets       │
 ├─────────────────────┤
 │                     │
 │ Drip4Life IV Therapy│
@@ -550,6 +551,63 @@ Triggered after selecting a staff member from the Assignment Modal.
 
 ---
 
+### 4.9 Timesheets
+
+Tracks timesheet submissions per pay cycle (25th → 24th of next month).
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Timesheets                        < [This Cycle] 25 Feb-24 Mar│
+│  Track pay cycle timesheet submissions                          │
+│                                                                  │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
+│  │ Total Sched. │ │  Submitted   │ │   Pending    │            │
+│  │     15       │ │      1       │ │     14       │            │
+│  │   (blue)     │ │   (green)    │ │    (red)     │            │
+│  └──────────────┘ └──────────────┘ └──────────────┘            │
+│                                                                  │
+│  Staff Member     Shifts  Hours  Status     Submitted  Notes    │
+│  ──────────────── ─────── ────── ────────── ─────────  ──────  │
+│  NURSES                                                         │
+│  Dinah             14      86h   [Submitted] 2026-03-01 [    ] │
+│  nurse permanent                  (green)                       │
+│  Dr Jean            3      28h   [Pending]   --         [    ] │
+│  nurse parttime                   (red)                         │
+│  ...                                                            │
+│  RECEPTIONISTS                                                  │
+│  Ian                5      45h   [Pending]   --         [    ] │
+│  recept. parttime                 (red)                         │
+│  Yondi             11     104h   [Pending]   --         [    ] │
+│  recept. permanent                (red)                         │
+│  ...                                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Auto-detection:** Scans all schedule data for weeks overlapping the pay cycle and lists every staff member with at least 1 shift, along with their total shift count and hours.
+
+**Pay cycle:** 25th of month → 24th of next month (e.g., 25 Feb → 24 Mar)
+
+**Status toggle:** Click to flip between Pending (red) and Submitted (green). Submitted auto-fills the date. Click again to revert to Pending.
+
+**Row colors:** Green tint when submitted, red tint when pending.
+
+**Notes:** Inline text input per staff member, persisted to Firebase.
+
+**Data structure:**
+```js
+timesheets: {
+  "2026-02-25": {                     // pay cycle start (always a 25th)
+    "dinah": {
+      status: "submitted",            // "pending" | "submitted"
+      submittedDate: "2026-03-01",    // auto-filled on toggle
+      notes: ""
+    }
+  }
+}
+```
+
+---
+
 ## 5. Auto-Scheduling Algorithm
 
 ### 7-Step Priority Algorithm
@@ -730,10 +788,16 @@ Firebase Realtime Database:
 │       └── ...
 ├── availability/                   # Leave dates per staff
 │   └── "dinah": ["2026-03-05", "2026-03-06"]
-└── shiftRequests/                  # Priority staff branch preferences
-    └── "nneka"/
-        ├── Monday: "rosebank"
-        └── Tuesday: "rosebank"
+├── shiftRequests/                  # Priority staff branch preferences
+│   └── "nneka"/
+│       ├── Monday: "rosebank"
+│       └── Tuesday: "rosebank"
+└── timesheets/                     # Pay cycle timesheet tracking
+    └── "2026-02-25"/               # Pay cycle start date (25th)
+        └── "dinah"/
+            ├── status: "submitted"
+            ├── submittedDate: "2026-03-01"
+            └── notes: ""
 ```
 
 **Normalization:** Firebase drops empty arrays/objects. `normalizeSchedules()` ensures every branch cell has `{ nurses: [], receptionists: [] }` and preserves optional `shiftStart`/`shiftEnd` fields on assignments.
@@ -790,6 +854,7 @@ iv-scheduler/
 │   ├── utils/
 │   │   ├── scheduler.js            # Auto-schedule algorithm + validation
 │   │   ├── exportExcel.js          # Excel workbook generation
+│   │   ├── payCycle.js             # Pay cycle date math & schedule scanning
 │   │   ├── firebase.js             # Firebase config & initialization
 │   │   └── storage.js              # localStorage + Firebase read/write
 │   └── components/
@@ -798,7 +863,8 @@ iv-scheduler/
 │       ├── WeeklySchedule.jsx      # Main schedule grid (drag-drop, modals)
 │       ├── StaffManager.jsx        # Staff CRUD interface
 │       ├── AvailabilityManager.jsx # Leave & shift request management
-│       └── MonthlyHours.jsx        # Monthly hours tracking
+│       ├── MonthlyHours.jsx        # Monthly hours tracking
+│       └── TimesheetTracker.jsx    # Pay cycle timesheet submission tracking
 └── .env                            # Firebase credentials (VITE_FIREBASE_*)
 ```
 

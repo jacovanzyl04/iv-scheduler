@@ -7,6 +7,7 @@ import StaffManager from './components/StaffManager';
 import AvailabilityManager from './components/AvailabilityManager';
 import MonthlyHours from './components/MonthlyHours';
 import Dashboard from './components/Dashboard';
+import TimesheetTracker from './components/TimesheetTracker';
 
 function getMonday(d) {
   const date = new Date(d);
@@ -40,6 +41,9 @@ export default function App() {
   const [shiftRequests, setShiftRequests] = useState(() =>
     loadFromStorage(STORAGE_KEYS.SHIFT_REQUESTS, {})
   );
+  const [timesheets, setTimesheets] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.TIMESHEETS, {})
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Track whether updates are from Firebase (to avoid write-back loops)
@@ -56,6 +60,7 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
   useEffect(() => { if (canSave(STORAGE_KEYS.AVAILABILITY) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
   useEffect(() => { if (canSave(STORAGE_KEYS.SHIFT_REQUESTS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.TIMESHEETS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.TIMESHEETS, timesheets); }, [timesheets]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -88,6 +93,12 @@ export default function App() {
       setShiftRequests(data || {});
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.SHIFT_REQUESTS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.TIMESHEETS, (data) => {
+      fromFirebase.current = true;
+      setTimesheets(data || {});
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.TIMESHEETS)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
@@ -212,6 +223,15 @@ export default function App() {
           <MonthlyHours
             staff={staff}
             schedules={schedules}
+          />
+        )}
+
+        {activePage === 'timesheets' && (
+          <TimesheetTracker
+            staff={staff}
+            schedules={schedules}
+            timesheets={timesheets}
+            setTimesheets={setTimesheets}
           />
         )}
       </main>
