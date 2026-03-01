@@ -165,7 +165,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         const { fileUrl, fileName, ...rest } = updated[currentCycle][staffId];
         updated[currentCycle] = {
           ...updated[currentCycle],
-          [staffId]: rest,
+          [staffId]: { ...rest, status: 'pending', submittedDate: null },
         };
         return updated;
       });
