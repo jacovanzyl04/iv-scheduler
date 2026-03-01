@@ -82,7 +82,10 @@ export default function WeeklySchedule({
   availability, shiftRequests, goToPrevWeek, goToNextWeek, goToToday
 }) {
   const [assignModal, setAssignModal] = useState(null); // { day, branchId, role }
-  const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember }
+  const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember, slots }
+  const [customTimeMode, setCustomTimeMode] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [showValidation, setShowValidation] = useState(false);
   const [dragOverTarget, setDragOverTarget] = useState(null);
   const [dragging, setDragging] = useState(null);
@@ -309,6 +312,9 @@ export default function WeeklySchedule({
     if (slots && slots.length > 1) {
       // Show time picker
       setTimePickerModal({ day, branchId, role, staffMember, slots });
+      setCustomTimeMode(false);
+      setCustomStart('');
+      setCustomEnd('');
       setAssignModal(null);
       return;
     }
@@ -374,14 +380,15 @@ export default function WeeklySchedule({
       if (fullyAssigned.has(s.id)) return false;
       if (s.availableDays && !s.availableDays.includes(day)) return false;
       if (availability[s.id]?.includes(dateStr)) return false;
-      // Only show truly unassigned (no assignments at all on this day)
-      let hasAnyAssignment = false;
+      // Show staff with no assignments OR only partial-day assignments
+      let hasFullDay = false;
       BRANCHES.forEach(b => {
         const cell = schedule[day]?.[b.id];
-        if (cell?.nurses?.some(n => n.id === s.id)) hasAnyAssignment = true;
-        if (cell?.receptionists?.some(r => r.id === s.id)) hasAnyAssignment = true;
+        [...(cell?.nurses || []), ...(cell?.receptionists || [])].forEach(person => {
+          if (person.id === s.id && !person.shiftStart && !person.shiftEnd) hasFullDay = true;
+        });
       });
-      return !hasAnyAssignment;
+      return !hasFullDay;
     });
   };
 
@@ -843,21 +850,88 @@ export default function WeeklySchedule({
             <p className="text-sm text-gray-500 mb-4">
               {timePickerModal.staffMember.name} &mdash; {BRANCHES.find(b => b.id === timePickerModal.branchId)?.name}
             </p>
-            <div className="space-y-2">
-              {timePickerModal.slots.map((slot, i) => (
+            {!customTimeMode ? (
+              <div className="space-y-2">
+                {timePickerModal.slots.map((slot, i) => (
+                  <button
+                    key={i}
+                    onClick={() => addAssignmentWithTime(
+                      timePickerModal.day, timePickerModal.branchId,
+                      timePickerModal.role, timePickerModal.staffMember,
+                      slot.start, slot.end
+                    )}
+                    className="w-full text-left px-4 py-3 rounded-lg border hover:bg-teal-50 hover:border-teal-300 transition-colors"
+                  >
+                    <div className="font-medium text-gray-800">{slot.label}</div>
+                  </button>
+                ))}
                 <button
-                  key={i}
-                  onClick={() => addAssignmentWithTime(
-                    timePickerModal.day, timePickerModal.branchId,
-                    timePickerModal.role, timePickerModal.staffMember,
-                    slot.start, slot.end
-                  )}
-                  className="w-full text-left px-4 py-3 rounded-lg border hover:bg-teal-50 hover:border-teal-300 transition-colors"
+                  onClick={() => {
+                    const branch = BRANCHES.find(b => b.id === timePickerModal.branchId);
+                    const hrs = branch?.hours[timePickerModal.day];
+                    setCustomStart(hrs?.open || '09:00');
+                    setCustomEnd(hrs?.close || '17:00');
+                    setCustomTimeMode(true);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg border border-dashed hover:bg-gray-50 hover:border-gray-400 transition-colors"
                 >
-                  <div className="font-medium text-gray-800">{slot.label}</div>
+                  <div className="font-medium text-gray-500">Custom times...</div>
                 </button>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-gray-600 w-12">Start</label>
+                  <input
+                    type="time"
+                    value={customStart}
+                    onChange={e => setCustomStart(e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-gray-600 w-12">End</label>
+                  <input
+                    type="time"
+                    value={customEnd}
+                    onChange={e => setCustomEnd(e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  />
+                </div>
+                {customStart && customEnd && timeToMinutes(customEnd) <= timeToMinutes(customStart) && (
+                  <p className="text-xs text-red-500">End time must be after start time</p>
+                )}
+                {customStart && customEnd && timeToMinutes(customEnd) > timeToMinutes(customStart) &&
+                  hasStaffTimeConflict(timePickerModal.staffMember.id, timePickerModal.day, customStart, customEnd, schedule, timePickerModal.branchId) && (
+                  <p className="text-xs text-red-500">Conflicts with an existing assignment</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setCustomTimeMode(false)}
+                    className="flex-1 px-3 py-2 rounded-lg border text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (customStart && customEnd && timeToMinutes(customEnd) > timeToMinutes(customStart) &&
+                          !hasStaffTimeConflict(timePickerModal.staffMember.id, timePickerModal.day, customStart, customEnd, schedule, timePickerModal.branchId)) {
+                        addAssignmentWithTime(
+                          timePickerModal.day, timePickerModal.branchId,
+                          timePickerModal.role, timePickerModal.staffMember,
+                          customStart, customEnd
+                        );
+                      }
+                    }}
+                    disabled={!customStart || !customEnd || timeToMinutes(customEnd) <= timeToMinutes(customStart) ||
+                      hasStaffTimeConflict(timePickerModal.staffMember.id, timePickerModal.day, customStart, customEnd, schedule, timePickerModal.branchId)}
+                    className="flex-1 px-3 py-2 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Assign
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
