@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck } from 'lucide-react';
 import { isScheduleRole } from '../data/initialData';
 import {
@@ -9,6 +9,33 @@ import {
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
+
+// Isolated input that uses local state while focused to prevent Firebase
+// round-trip from overwriting text mid-typing. Syncs to parent on blur.
+function NotesInput({ value, onChange, placeholder, className }) {
+  const [localValue, setLocalValue] = useState(value || '');
+  const [focused, setFocused] = useState(false);
+
+  // Sync from parent when not focused (e.g. Firebase update while idle)
+  useEffect(() => {
+    if (!focused) setLocalValue(value || '');
+  }, [value, focused]);
+
+  return (
+    <input
+      type="text"
+      value={localValue}
+      onChange={e => setLocalValue(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        if (localValue !== (value || '')) onChange(localValue);
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
 
 export default function TimesheetTracker({ staff, schedules, timesheets, setTimesheets }) {
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
@@ -135,10 +162,9 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           {ts.submittedDate || <span className="text-gray-300">&mdash;</span>}
         </td>
         <td className="p-3">
-          <input
-            type="text"
-            value={ts.notes || ''}
-            onChange={e => updateNotes(staffId, e.target.value)}
+          <NotesInput
+            value={ts.notes}
+            onChange={notes => updateNotes(staffId, notes)}
             placeholder="Add note..."
             className="w-full text-sm px-2 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
           />
