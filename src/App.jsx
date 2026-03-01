@@ -44,15 +44,18 @@ export default function App() {
 
   // Track whether updates are from Firebase (to avoid write-back loops)
   const fromFirebase = useRef(false);
-  // Skip saving on initial mount (prevents fresh deploy from overwriting Firebase data)
-  const hasMounted = useRef(false);
-  useEffect(() => { hasMounted.current = true; }, []);
+  // Track which Firebase keys have loaded their initial data
+  // Prevents fresh deploys/new devices from overwriting Firebase with defaults
+  const firebaseLoaded = useRef(new Set());
+
+  // Check if it's safe to save a key (Firebase must have loaded first, or not be configured)
+  const canSave = (key) => !isConfigured || firebaseLoaded.current.has(key);
 
   // Persist state changes (writes to both localStorage and Firebase)
-  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.STAFF, staff); }, [staff]);
-  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
-  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
-  useEffect(() => { if (hasMounted.current && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.STAFF) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.STAFF, staff); }, [staff]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.AVAILABILITY) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.SHIFT_REQUESTS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -60,29 +63,31 @@ export default function App() {
 
     const unsubs = [];
 
+    const markLoaded = (key) => () => { firebaseLoaded.current.add(key); };
+
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.STAFF, (data) => {
       fromFirebase.current = true;
       setStaff(Array.isArray(data) ? data : []);
       setTimeout(() => { fromFirebase.current = false; }, 0);
-    }));
+    }, markLoaded(STORAGE_KEYS.STAFF)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.SCHEDULES, (data) => {
       fromFirebase.current = true;
       setSchedules(normalizeSchedules(data));
       setTimeout(() => { fromFirebase.current = false; }, 0);
-    }));
+    }, markLoaded(STORAGE_KEYS.SCHEDULES)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.AVAILABILITY, (data) => {
       fromFirebase.current = true;
       setAvailability(data || {});
       setTimeout(() => { fromFirebase.current = false; }, 0);
-    }));
+    }, markLoaded(STORAGE_KEYS.AVAILABILITY)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.SHIFT_REQUESTS, (data) => {
       fromFirebase.current = true;
       setShiftRequests(data || {});
       setTimeout(() => { fromFirebase.current = false; }, 0);
-    }));
+    }, markLoaded(STORAGE_KEYS.SHIFT_REQUESTS)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);

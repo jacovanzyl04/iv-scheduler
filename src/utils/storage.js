@@ -50,7 +50,8 @@ export function saveToStorage(key, data) {
 
 // Subscribe to real-time updates from Firebase
 // Returns an unsubscribe function
-export function subscribeToFirebase(key, callback) {
+// onReady is called on every snapshot (even null) so callers know Firebase has responded
+export function subscribeToFirebase(key, callback, onReady) {
   if (!isConfigured || !db) return null;
 
   const path = FIREBASE_PATHS[key];
@@ -59,6 +60,7 @@ export function subscribeToFirebase(key, callback) {
   const dbRef = ref(db, path);
   const unsubscribe = onValue(dbRef, (snapshot) => {
     const data = snapshot.val();
+    if (onReady) onReady();
     if (data !== null) {
       // Cache in localStorage
       try {
