@@ -319,6 +319,21 @@ export const INITIAL_STAFF = [
   },
 ];
 
+/**
+ * Calculate lunch deduction for a person on a given day.
+ * Rules:
+ *  - Any day a person works → 1h lunch deduction
+ *  - Sunday at Parkview → 0.5h lunch instead
+ *  - Only ONE deduction per person per day regardless of branches worked
+ *    (e.g. clinic + parkview on same day = 1 lunch, not 2)
+ */
+export function getLunchDeduction(dayOfWeek, branchesWorked) {
+  if (dayOfWeek === 'Sunday' && branchesWorked.includes('parkview')) {
+    return 0.5;
+  }
+  return 1;
+}
+
 // Helper: get shift hours for a branch on a given day
 export function getShiftHours(branchId, dayOfWeek) {
   const branch = BRANCHES.find(b => b.id === branchId);

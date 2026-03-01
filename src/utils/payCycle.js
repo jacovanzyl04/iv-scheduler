@@ -1,4 +1,4 @@
-import { BRANCHES, DAYS_OF_WEEK, getShiftHours, isScheduleRole } from '../data/initialData';
+import { BRANCHES, DAYS_OF_WEEK, getShiftHours, getLunchDeduction, isScheduleRole } from '../data/initialData';
 import { hoursBetween } from './scheduler';
 
 function formatPayCycleDate(year, month, day) {
@@ -70,6 +70,7 @@ export function getWeekKeysForPayCycle(cycleStartStr) {
 
 /**
  * Scan schedules for all staff who have at least 1 shift in the pay cycle.
+ * Deducts lunch per person per day (1h normally, 0.5h Sunday at Parkview).
  * Returns { [staffId]: { name, role, employmentType, shifts, hours } }
  */
 export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
@@ -89,6 +90,9 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
       // Only count days within the pay cycle range
       if (dayDate < start || dayDate > end) return;
 
+      // Collect per-person shifts for this day across all branches
+      const dayShifts = {}; // { personId: { person, branches: [], totalHours: 0 } }
+
       BRANCHES.forEach(branch => {
         const cell = weekSchedule[day]?.[branch.id];
         if (!cell) return;
@@ -96,15 +100,8 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
         const defaultHrs = getShiftHours(branch.id, day);
 
         [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
-          if (!result[person.id]) {
-            const staffMember = staff.find(s => s.id === person.id);
-            result[person.id] = {
-              name: staffMember?.name || person.name,
-              role: staffMember?.role || 'unknown',
-              employmentType: staffMember?.employmentType || 'unknown',
-              shifts: 0,
-              hours: 0,
-            };
+          if (!dayShifts[person.id]) {
+            dayShifts[person.id] = { person, branches: [], totalHours: 0 };
           }
 
           let shiftHrs = defaultHrs;
@@ -112,9 +109,27 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
             shiftHrs = hoursBetween(person.shiftStart, person.shiftEnd);
           }
 
-          result[person.id].shifts += 1;
-          result[person.id].hours += shiftHrs;
+          dayShifts[person.id].branches.push(branch.id);
+          dayShifts[person.id].totalHours += shiftHrs;
         });
+      });
+
+      // Apply lunch deduction per person (one per day)
+      Object.entries(dayShifts).forEach(([personId, data]) => {
+        if (!result[personId]) {
+          const staffMember = staff.find(s => s.id === personId);
+          result[personId] = {
+            name: staffMember?.name || data.person.name,
+            role: staffMember?.role || 'unknown',
+            employmentType: staffMember?.employmentType || 'unknown',
+            shifts: 0,
+            hours: 0,
+          };
+        }
+
+        const lunch = getLunchDeduction(day, data.branches);
+        result[personId].shifts += data.branches.length;
+        result[personId].hours += data.totalHours - lunch;
       });
     });
   });

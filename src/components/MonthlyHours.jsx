@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { BRANCHES, DAYS_OF_WEEK, getShiftHours, isScheduleRole } from '../data/initialData';
+import { BRANCHES, DAYS_OF_WEEK, getShiftHours, getLunchDeduction, isScheduleRole } from '../data/initialData';
 import { hoursBetween } from '../utils/scheduler';
 import {
   getPayCycleForDate,
@@ -60,6 +60,9 @@ export default function MonthlyHours({ staff, schedules }) {
         // Only count days within the pay cycle range (25th → 24th)
         if (dayDate < start || dayDate > end) return;
 
+        // Collect per-person shifts for this day across all branches
+        const dayShifts = {}; // { personId: { branches: [], totalHours: 0 } }
+
         BRANCHES.forEach(branch => {
           const cell = weekSchedule[day]?.[branch.id];
           if (!cell) return;
@@ -68,15 +71,25 @@ export default function MonthlyHours({ staff, schedules }) {
 
           [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
             if (weekHours[person.id]) {
+              if (!dayShifts[person.id]) {
+                dayShifts[person.id] = { branches: [], totalHours: 0 };
+              }
               // Use custom shift times if present (e.g. Saturday split shifts)
               let shiftHrs = defaultHrs;
               if (person.shiftStart && person.shiftEnd) {
                 shiftHrs = hoursBetween(person.shiftStart, person.shiftEnd);
               }
-              weekHours[person.id].hours += shiftHrs;
-              weekHours[person.id].shifts += 1;
+              dayShifts[person.id].branches.push(branch.id);
+              dayShifts[person.id].totalHours += shiftHrs;
             }
           });
+        });
+
+        // Apply lunch deduction per person (one per day)
+        Object.entries(dayShifts).forEach(([personId, data]) => {
+          const lunch = getLunchDeduction(day, data.branches);
+          weekHours[personId].hours += data.totalHours - lunch;
+          weekHours[personId].shifts += data.branches.length;
         });
       });
 
