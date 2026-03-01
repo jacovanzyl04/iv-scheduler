@@ -33,9 +33,7 @@ export async function uploadTimesheetFile(cycleKey, staffId, file) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('public_id', `timesheets/${cycleKey}/${staffId}`);
-  formData.append('overwrite', 'true');
-  formData.append('resource_type', 'auto');
+  formData.append('public_id', `timesheets/${cycleKey}/${staffId}_${Date.now()}`);
 
   const res = await fetch(
     `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
@@ -55,7 +53,6 @@ export async function uploadTimesheetFile(cycleKey, staffId, file) {
  * "Delete" a timesheet file — since Cloudinary deletion requires the API secret
  * (server-side only), we just clear the reference from the database.
  * The file stays in Cloudinary but 25GB free tier is plenty for timesheets.
- * Replacement uploads use overwrite: true to reuse the same public_id.
  */
 export async function deleteTimesheetFile() {
   // No-op: Cloudinary files can't be deleted client-side.
