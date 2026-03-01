@@ -1,5 +1,7 @@
-import { storage, storageRef, uploadBytes, getDownloadURL, deleteObject, listAll, isConfigured } from './firebase';
 import { getPrevPayCycle, getPayCycleForDate } from './payCycle';
+
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_TYPES = [
@@ -11,13 +13,13 @@ const ACCEPTED_TYPES = [
 ];
 
 /**
- * Upload a timesheet file for a staff member in a specific pay cycle.
- * Stores at: timesheets/{cycleKey}/{staffId}/{filename}
+ * Upload a timesheet file to Cloudinary via unsigned upload.
+ * Files are stored with public_id: timesheets/{cycleKey}/{staffId}
  * Returns { fileUrl, fileName } on success.
  */
 export async function uploadTimesheetFile(cycleKey, staffId, file) {
-  if (!isConfigured || !storage) {
-    throw new Error('Firebase Storage is not configured');
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error('Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to .env');
   }
 
   if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -28,62 +30,42 @@ export async function uploadTimesheetFile(cycleKey, staffId, file) {
     throw new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 10MB.`);
   }
 
-  // Delete any existing file first (for replacements)
-  await deleteTimesheetFile(cycleKey, staffId);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('public_id', `timesheets/${cycleKey}/${staffId}`);
+  formData.append('overwrite', 'true');
+  formData.append('resource_type', 'auto');
 
-  const filePath = `timesheets/${cycleKey}/${staffId}/${file.name}`;
-  const fileRef = storageRef(storage, filePath);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
+    { method: 'POST', body: formData }
+  );
 
-  await uploadBytes(fileRef, file, { contentType: file.type });
-  const fileUrl = await getDownloadURL(fileRef);
-
-  return { fileUrl, fileName: file.name };
-}
-
-/**
- * Delete timesheet file(s) for a staff member in a specific pay cycle.
- * Silently succeeds if no file exists.
- */
-export async function deleteTimesheetFile(cycleKey, staffId) {
-  if (!isConfigured || !storage) return;
-
-  const folderRef = storageRef(storage, `timesheets/${cycleKey}/${staffId}`);
-
-  try {
-    const result = await listAll(folderRef);
-    await Promise.all(result.items.map(item => deleteObject(item)));
-  } catch (e) {
-    // Folder might not exist yet — that's fine
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Upload failed. Please try again.');
   }
+
+  const data = await res.json();
+  return { fileUrl: data.secure_url, fileName: file.name };
 }
 
 /**
- * Delete ALL files for an entire pay cycle (used for auto-cleanup).
+ * "Delete" a timesheet file — since Cloudinary deletion requires the API secret
+ * (server-side only), we just clear the reference from the database.
+ * The file stays in Cloudinary but 25GB free tier is plenty for timesheets.
+ * Replacement uploads use overwrite: true to reuse the same public_id.
  */
-async function deletePayCycleFiles(cycleKey) {
-  if (!isConfigured || !storage) return;
-
-  const cycleFolderRef = storageRef(storage, `timesheets/${cycleKey}`);
-
-  try {
-    const staffFolders = await listAll(cycleFolderRef);
-
-    for (const prefix of staffFolders.prefixes) {
-      const staffFiles = await listAll(prefix);
-      await Promise.all(staffFiles.items.map(item => deleteObject(item)));
-    }
-
-    // Also delete any direct items at cycle level (defensive)
-    await Promise.all(staffFolders.items.map(item => deleteObject(item)));
-  } catch (e) {
-    console.warn('[Timesheet Cleanup] Error for cycle', cycleKey, ':', e.message);
-  }
+export async function deleteTimesheetFile() {
+  // No-op: Cloudinary files can't be deleted client-side.
+  // The URL is cleared from the database by the caller.
 }
 
 /**
- * Run monthly auto-cleanup of old timesheet files.
- * Deletes the previous pay cycle's uploaded files from Storage
- * and strips fileUrl/fileName from database entries.
+ * Run monthly auto-cleanup of old timesheet references.
+ * Strips fileUrl/fileName from database entries for old pay cycles.
+ * Cloudinary files remain but URLs become orphaned (no impact, free tier is 25GB).
  *
  * Runs once per month (tracks in localStorage).
  * Example: In March, cleans Jan 25 cycle (ended Feb 24).
@@ -97,17 +79,11 @@ export async function runMonthlyCleanup(timesheets, setTimesheets) {
 
   if (lastCleanup === currentMonth) return; // Already cleaned this month
 
-  // The cycle to clean: previous cycle before the current one
-  // On March 1+, current cycle = Feb 25, previous = Jan 25
   const currentCycle = getPayCycleForDate(today);
   const cycleToClean = getPrevPayCycle(currentCycle);
 
-  console.log(`[Timesheet Cleanup] Cleaning files for cycle: ${cycleToClean}`);
-
   try {
-    await deletePayCycleFiles(cycleToClean);
-
-    // Strip fileUrl/fileName from RTDB data for that cycle
+    // Strip fileUrl/fileName from database entries for that cycle
     if (timesheets[cycleToClean]) {
       setTimesheets(prev => {
         const updated = { ...prev };
@@ -126,7 +102,6 @@ export async function runMonthlyCleanup(timesheets, setTimesheets) {
     }
 
     localStorage.setItem(cleanupKey, currentMonth);
-    console.log(`[Timesheet Cleanup] Done. Cleaned cycle ${cycleToClean}`);
   } catch (e) {
     console.error('[Timesheet Cleanup] Failed:', e);
   }
