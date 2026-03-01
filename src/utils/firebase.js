@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, onValue } from 'firebase/database';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,10 +17,16 @@ const isConfigured = !!firebaseConfig.apiKey && !!firebaseConfig.databaseURL;
 
 let app = null;
 let db = null;
+let storage = null;
 
 if (isConfigured) {
   app = initializeApp(firebaseConfig);
   db = getDatabase(app);
+  try {
+    storage = getStorage(app);
+  } catch (e) {
+    console.warn('Firebase Storage not available:', e.message);
+  }
 }
 
-export { db, ref, set, onValue, isConfigured };
+export { db, ref, set, onValue, storage, storageRef, uploadBytes, getDownloadURL, deleteObject, listAll, isConfigured };

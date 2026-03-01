@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck, Upload, Paperclip, X, Loader2 } from 'lucide-react';
 import { isScheduleRole } from '../data/initialData';
 import {
   getPayCycleForDate,
@@ -9,6 +9,7 @@ import {
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
+import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup } from '../utils/timesheetFiles';
 
 // Isolated input that uses local state while focused to prevent Firebase
 // round-trip from overwriting text mid-typing. Syncs to parent on blur.
@@ -39,6 +40,13 @@ function NotesInput({ value, onChange, placeholder, className }) {
 
 export default function TimesheetTracker({ staff, schedules, timesheets, setTimesheets }) {
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
+  const [uploadingStaff, setUploadingStaff] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const fileInputRef = useRef(null);
+  const uploadTargetStaff = useRef(null);
+
+  // Auto-cleanup old pay cycle files on mount
+  useEffect(() => { runMonthlyCleanup(timesheets, setTimesheets); }, []);
 
   const cycleRange = useMemo(() => getPayCycleRange(currentCycle), [currentCycle]);
 
@@ -62,6 +70,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const totalStaff = staffEntries.length;
   const submittedCount = staffEntries.filter(([id]) => cycleTimesheets[id]?.status === 'submitted').length;
   const pendingCount = totalStaff - submittedCount;
+  const filesUploadedCount = staffEntries.filter(([id]) => cycleTimesheets[id]?.fileUrl).length;
 
   // Split by role
   const nurses = staffEntries.filter(([, info]) => info.role === 'nurse').sort((a, b) => a[1].name.localeCompare(b[1].name));
@@ -106,6 +115,65 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const goToNextCycle = () => setCurrentCycle(getNextPayCycle(currentCycle));
   const goToCurrentCycle = () => setCurrentCycle(getPayCycleForDate(new Date()));
 
+  const handleUploadClick = (staffId) => {
+    setUploadError(null);
+    uploadTargetStaff.current = staffId;
+    fileInputRef.current.value = '';
+    fileInputRef.current.click();
+  };
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const staffId = uploadTargetStaff.current;
+    if (!staffId) return;
+
+    setUploadingStaff(staffId);
+    setUploadError(null);
+
+    try {
+      const { fileUrl, fileName } = await uploadTimesheetFile(currentCycle, staffId, file);
+      setTimesheets(prev => {
+        const updated = { ...prev };
+        if (!updated[currentCycle]) updated[currentCycle] = {};
+        const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
+        updated[currentCycle] = {
+          ...updated[currentCycle],
+          [staffId]: {
+            ...current,
+            fileUrl,
+            fileName,
+            status: 'submitted',
+            submittedDate: new Date().toISOString().split('T')[0],
+          },
+        };
+        return updated;
+      });
+    } catch (err) {
+      setUploadError({ staffId, message: err.message });
+    } finally {
+      setUploadingStaff(null);
+    }
+  };
+
+  const handleRemoveFile = async (staffId) => {
+    try {
+      await deleteTimesheetFile(currentCycle, staffId);
+      setTimesheets(prev => {
+        const updated = { ...prev };
+        if (!updated[currentCycle]?.[staffId]) return prev;
+        const { fileUrl, fileName, ...rest } = updated[currentCycle][staffId];
+        updated[currentCycle] = {
+          ...updated[currentCycle],
+          [staffId]: rest,
+        };
+        return updated;
+      });
+    } catch (err) {
+      console.error('Failed to remove file:', err);
+    }
+  };
+
   const renderStaffRow = ([staffId, info]) => {
     const ts = cycleTimesheets[staffId] || { status: 'pending', submittedDate: null, notes: '' };
     const isSubmitted = ts.status === 'submitted';
@@ -118,7 +186,45 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         }`}
       >
         <td className="p-3">
-          <div className="font-medium text-gray-800 text-sm">{info.name}</div>
+          <div className="flex items-center gap-1.5">
+            {ts.fileUrl && (
+              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+            )}
+            {ts.fileUrl ? (
+              <a
+                href={ts.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-teal-600 hover:text-teal-800 underline text-sm"
+                title={`Open ${ts.fileName || 'timesheet'}`}
+              >
+                {info.name}
+              </a>
+            ) : (
+              <span className="font-medium text-gray-800 text-sm">{info.name}</span>
+            )}
+            {uploadingStaff === staffId ? (
+              <Loader2 className="w-4 h-4 text-teal-500 animate-spin shrink-0" />
+            ) : (
+              <button
+                onClick={() => handleUploadClick(staffId)}
+                className="p-0.5 rounded hover:bg-gray-100 transition-colors"
+                title={ts.fileUrl ? 'Replace file' : 'Upload timesheet'}
+                disabled={!!uploadingStaff}
+              >
+                <Upload className={`w-3.5 h-3.5 ${uploadingStaff ? 'text-gray-200' : 'text-gray-400 hover:text-teal-600'}`} />
+              </button>
+            )}
+            {ts.fileUrl && (
+              <button
+                onClick={() => handleRemoveFile(staffId)}
+                className="p-0.5 rounded hover:bg-red-50 transition-colors"
+                title="Remove file"
+              >
+                <X className="w-3.5 h-3.5 text-gray-300 hover:text-red-500" />
+              </button>
+            )}
+          </div>
           <div className="flex gap-1.5 mt-0.5">
             <span className={`text-xs px-1.5 py-0.5 rounded ${
               info.role === 'nurse' ? 'bg-blue-50 text-blue-600'
@@ -133,6 +239,9 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
               {info.employmentType}
             </span>
           </div>
+          {uploadError?.staffId === staffId && (
+            <p className="text-xs text-red-500 mt-1">{uploadError.message}</p>
+          )}
         </td>
         <td className="p-3 text-center">
           {isScheduleRole(info.role)
@@ -201,7 +310,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -232,6 +341,17 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
             <div>
               <p className="text-sm text-gray-500">Pending</p>
               <p className="text-2xl font-bold text-red-600">{pendingCount}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-teal-100 rounded-lg">
+              <Paperclip className="w-5 h-5 text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Files Uploaded</p>
+              <p className="text-2xl font-bold text-teal-600">{filesUploadedCount}</p>
             </div>
           </div>
         </div>
@@ -294,6 +414,15 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           </div>
         </div>
       )}
+
+      {/* Hidden file input shared across all rows */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+        onChange={handleFileSelected}
+        className="hidden"
+      />
     </div>
   );
 }
