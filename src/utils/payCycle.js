@@ -1,4 +1,4 @@
-import { BRANCHES, DAYS_OF_WEEK, getShiftHours } from '../data/initialData';
+import { BRANCHES, DAYS_OF_WEEK, getShiftHours, isScheduleRole } from '../data/initialData';
 import { hoursBetween } from './scheduler';
 
 function formatPayCycleDate(year, month, day) {
@@ -119,6 +119,27 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
     });
   });
 
+  return result;
+}
+
+/**
+ * Get all support staff (cleaners, etc.) for timesheet tracking.
+ * Support staff always appear every pay cycle regardless of schedule.
+ * Returns { [staffId]: { name, role, employmentType, shifts: 0, hours: 0 } }
+ */
+export function getSupportStaffForPayCycle(staff) {
+  const result = {};
+  staff.forEach(member => {
+    if (!isScheduleRole(member.role)) {
+      result[member.id] = {
+        name: member.name,
+        role: member.role,
+        employmentType: member.employmentType,
+        shifts: 0,
+        hours: 0,
+      };
+    }
+  });
   return result;
 }
 

@@ -5,7 +5,7 @@ const navItems = [
   { id: 'schedule', label: 'Weekly Schedule', icon: Calendar },
   { id: 'staff', label: 'Staff', icon: Users },
   { id: 'availability', label: 'Availability', icon: ClipboardList },
-  { id: 'hours', label: 'Monthly Hours', icon: Clock },
+  { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
   { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
 ];
 

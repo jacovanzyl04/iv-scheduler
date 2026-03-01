@@ -62,6 +62,12 @@ export const BRANCHES = [
 
 export const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+// Role categories — schedule roles appear on the weekly schedule, support roles only appear in timesheets
+export const SCHEDULE_ROLES = ['nurse', 'receptionist'];
+export const SUPPORT_ROLES = ['cleaner'];
+export const ROLE_LABELS = { nurse: 'Nurse', receptionist: 'Receptionist', cleaner: 'Cleaner' };
+export function isScheduleRole(role) { return SCHEDULE_ROLES.includes(role); }
+
 // Staff definitions with all constraints
 export const INITIAL_STAFF = [
   // === RECEPTIONISTS ===

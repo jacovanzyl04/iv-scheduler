@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck } from 'lucide-react';
+import { isScheduleRole } from '../data/initialData';
 import {
   getPayCycleForDate,
   getPayCycleRange,
   getScheduledStaffForPayCycle,
+  getSupportStaffForPayCycle,
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
@@ -18,17 +20,26 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
     [schedules, staff, currentCycle]
   );
 
+  const supportStaff = useMemo(
+    () => getSupportStaffForPayCycle(staff),
+    [staff]
+  );
+
+  // Merge scheduled + support staff for totals
+  const allStaff = useMemo(() => ({ ...scheduledStaff, ...supportStaff }), [scheduledStaff, supportStaff]);
+
   const cycleTimesheets = timesheets[currentCycle] || {};
 
   // Summary counts
-  const staffEntries = Object.entries(scheduledStaff);
-  const totalScheduled = staffEntries.length;
+  const staffEntries = Object.entries(allStaff);
+  const totalStaff = staffEntries.length;
   const submittedCount = staffEntries.filter(([id]) => cycleTimesheets[id]?.status === 'submitted').length;
-  const pendingCount = totalScheduled - submittedCount;
+  const pendingCount = totalStaff - submittedCount;
 
   // Split by role
   const nurses = staffEntries.filter(([, info]) => info.role === 'nurse').sort((a, b) => a[1].name.localeCompare(b[1].name));
   const receptionists = staffEntries.filter(([, info]) => info.role === 'receptionist').sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const support = staffEntries.filter(([, info]) => !isScheduleRole(info.role)).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
   const toggleStatus = (staffId) => {
     setTimesheets(prev => {
@@ -83,7 +94,9 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           <div className="font-medium text-gray-800 text-sm">{info.name}</div>
           <div className="flex gap-1.5 mt-0.5">
             <span className={`text-xs px-1.5 py-0.5 rounded ${
-              info.role === 'nurse' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'
+              info.role === 'nurse' ? 'bg-blue-50 text-blue-600'
+              : info.role === 'receptionist' ? 'bg-pink-50 text-pink-600'
+              : 'bg-green-50 text-green-600'
             }`}>
               {info.role}
             </span>
@@ -95,10 +108,16 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           </div>
         </td>
         <td className="p-3 text-center">
-          <span className="text-lg font-bold text-gray-800">{info.shifts}</span>
+          {isScheduleRole(info.role)
+            ? <span className="text-lg font-bold text-gray-800">{info.shifts}</span>
+            : <span className="text-sm text-gray-400">—</span>
+          }
         </td>
         <td className="p-3 text-center">
-          <span className="text-lg font-bold text-gray-800">{info.hours}h</span>
+          {isScheduleRole(info.role)
+            ? <span className="text-lg font-bold text-gray-800">{info.hours}h</span>
+            : <span className="text-sm text-gray-400">—</span>
+          }
         </td>
         <td className="p-3 text-center">
           <button
@@ -163,8 +182,8 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
               <Users className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Scheduled</p>
-              <p className="text-2xl font-bold text-gray-800">{totalScheduled}</p>
+              <p className="text-sm text-gray-500">Total Staff</p>
+              <p className="text-2xl font-bold text-gray-800">{totalStaff}</p>
             </div>
           </div>
         </div>
@@ -193,7 +212,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       </div>
 
       {/* Staff Table */}
-      {totalScheduled === 0 ? (
+      {totalStaff === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border text-center py-16">
           <FileCheck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p className="text-sm text-gray-400">No staff scheduled in this pay cycle.</p>
@@ -232,6 +251,16 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
                       </td>
                     </tr>
                     {receptionists.map(renderStaffRow)}
+                  </>
+                )}
+                {support.length > 0 && (
+                  <>
+                    <tr>
+                      <td colSpan={6} className="bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 uppercase tracking-wide">
+                        Support Staff
+                      </td>
+                    </tr>
+                    {support.map(renderStaffRow)}
                   </>
                 )}
               </tbody>

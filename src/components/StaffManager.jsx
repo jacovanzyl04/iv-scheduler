@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BRANCHES } from '../data/initialData';
+import { BRANCHES, isScheduleRole } from '../data/initialData';
 import { UserPlus, Edit2, Trash2, X, Check, Star, MapPin, Clock, AlertCircle } from 'lucide-react';
 
 const STAFF_COLORS = [
@@ -72,13 +72,15 @@ export default function StaffManager({ staff, setStaff }) {
     if (filter === 'all') return true;
     if (filter === 'nurses') return s.role === 'nurse';
     if (filter === 'receptionists') return s.role === 'receptionist';
+    if (filter === 'support') return !isScheduleRole(s.role);
     if (filter === 'permanent') return s.employmentType === 'permanent';
     return true;
   });
 
   const roleColor = (role) => {
     if (role === 'nurse') return 'nurse-badge';
-    return 'receptionist-badge';
+    if (role === 'receptionist') return 'receptionist-badge';
+    return 'bg-green-100 text-green-700 border border-green-300';
   };
 
   const typeColor = (type) => {
@@ -105,7 +107,7 @@ export default function StaffManager({ staff, setStaff }) {
 
       {/* Filters */}
       <div className="flex gap-2 mb-4">
-        {['all', 'nurses', 'receptionists', 'permanent'].map(f => (
+        {['all', 'nurses', 'receptionists', 'support', 'permanent'].map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -151,32 +153,34 @@ export default function StaffManager({ staff, setStaff }) {
             </div>
 
             <div className="mt-3 space-y-1.5 text-sm">
-              {/* Branches */}
-              <div className="flex items-start gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
-                <div className="text-gray-600">
-                  {member.branches.map(bId => {
-                    const b = BRANCHES.find(br => br.id === bId);
-                    const isMain = member.mainBranch === bId;
-                    return (
-                      <span key={bId} className={`inline-block mr-1 ${isMain ? 'font-medium text-gray-800' : ''}`}>
-                        {b?.name || bId}{isMain ? ' ★' : ''}
-                        {member.branches.indexOf(bId) < member.branches.length - 1 ? ',' : ''}
-                      </span>
-                    );
-                  })}
+              {/* Branches (schedule roles only) */}
+              {isScheduleRole(member.role) && member.branches?.length > 0 && (
+                <div className="flex items-start gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                  <div className="text-gray-600">
+                    {member.branches.map(bId => {
+                      const b = BRANCHES.find(br => br.id === bId);
+                      const isMain = member.mainBranch === bId;
+                      return (
+                        <span key={bId} className={`inline-block mr-1 ${isMain ? 'font-medium text-gray-800' : ''}`}>
+                          {b?.name || bId}{isMain ? ' ★' : ''}
+                          {member.branches.indexOf(bId) < member.branches.length - 1 ? ',' : ''}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Available days */}
-              {member.availableDays && (
+              {/* Available days (schedule roles only) */}
+              {isScheduleRole(member.role) && member.availableDays && (
                 <div className="flex items-start gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
                   <span className="text-gray-600">{member.availableDays.join(', ')} only</span>
                 </div>
               )}
 
-              {/* Constraints */}
+              {/* Constraints (schedule roles only) */}
               {member.canWorkAlone && (
                 <div className="flex items-center gap-1.5 text-blue-600">
                   <Check className="w-3.5 h-3.5" />
@@ -203,6 +207,11 @@ export default function StaffManager({ staff, setStaff }) {
                   <Clock className="w-3.5 h-3.5" />
                   <span>Target: {member.monthlyHoursTarget}h/month</span>
                 </div>
+              )}
+
+              {/* Support role indicator */}
+              {!isScheduleRole(member.role) && (
+                <div className="text-xs text-gray-400 italic">Not shown on weekly schedule — timesheets only</div>
               )}
 
               {member.notes && (
@@ -244,11 +253,26 @@ export default function StaffManager({ staff, setStaff }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
                   value={formData.role}
-                  onChange={e => setFormData({ ...formData, role: e.target.value })}
+                  onChange={e => {
+                    const newRole = e.target.value;
+                    const updates = { role: newRole };
+                    if (!isScheduleRole(newRole)) {
+                      updates.branches = [];
+                      updates.lastResortBranches = [];
+                      updates.mainBranch = null;
+                      updates.availableDays = null;
+                      updates.minShiftsPerWeek = null;
+                      updates.weekendBothOrNone = false;
+                      updates.canWorkAlone = false;
+                      updates.priority = false;
+                    }
+                    setFormData({ ...formData, ...updates });
+                  }}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
                 >
                   <option value="nurse">Nurse</option>
                   <option value="receptionist">Receptionist</option>
+                  <option value="cleaner">Cleaner</option>
                 </select>
               </div>
 
@@ -266,128 +290,132 @@ export default function StaffManager({ staff, setStaff }) {
                 </select>
               </div>
 
-              {/* Can work alone */}
-              {formData.role === 'nurse' && (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.canWorkAlone}
-                    onChange={e => setFormData({ ...formData, canWorkAlone: e.target.checked })}
-                    className="w-4 h-4 text-teal-600 rounded"
-                  />
-                  <span className="text-sm text-gray-700">Can work alone (no receptionist needed)</span>
-                </label>
-              )}
-
-              {/* Priority */}
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.priority}
-                  onChange={e => setFormData({ ...formData, priority: e.target.checked })}
-                  className="w-4 h-4 text-teal-600 rounded"
-                />
-                <span className="text-sm text-gray-700">Priority scheduling (gets all requested shifts)</span>
-              </label>
-
-              {/* Branches */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Available Branches</label>
-                <div className="space-y-1">
-                  {BRANCHES.map(branch => (
-                    <label key={branch.id} className="flex items-center gap-2">
+              {/* Schedule-specific fields (hidden for support roles like cleaners) */}
+              {isScheduleRole(formData.role) && (
+                <>
+                  {/* Can work alone */}
+                  {formData.role === 'nurse' && (
+                    <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={formData.branches?.includes(branch.id)}
-                        onChange={e => {
-                          const branches = e.target.checked
-                            ? [...(formData.branches || []), branch.id]
-                            : (formData.branches || []).filter(b => b !== branch.id);
-                          setFormData({ ...formData, branches });
-                        }}
+                        checked={formData.canWorkAlone}
+                        onChange={e => setFormData({ ...formData, canWorkAlone: e.target.checked })}
                         className="w-4 h-4 text-teal-600 rounded"
                       />
-                      <span className="text-sm text-gray-700">{branch.name}</span>
+                      <span className="text-sm text-gray-700">Can work alone (no receptionist needed)</span>
                     </label>
-                  ))}
-                </div>
-              </div>
+                  )}
 
-              {/* Main branch */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Main Branch (preferred)</label>
-                <select
-                  value={formData.mainBranch || ''}
-                  onChange={e => setFormData({ ...formData, mainBranch: e.target.value || null })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-                >
-                  <option value="">No preference</option>
-                  {BRANCHES.filter(b => formData.branches?.includes(b.id)).map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
-              </div>
+                  {/* Priority */}
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.priority}
+                      onChange={e => setFormData({ ...formData, priority: e.target.checked })}
+                      className="w-4 h-4 text-teal-600 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Priority scheduling (gets all requested shifts)</span>
+                  </label>
 
-              {/* Available days */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Available Days</label>
-                <div className="flex flex-wrap gap-1">
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
-                    const isSelected = !formData.availableDays || formData.availableDays.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => {
-                          if (!formData.availableDays) {
-                            // Currently all days, switch to specific selection
-                            setFormData({ ...formData, availableDays: [day] });
-                          } else if (formData.availableDays.includes(day)) {
-                            const newDays = formData.availableDays.filter(d => d !== day);
-                            setFormData({ ...formData, availableDays: newDays.length === 7 ? null : newDays.length === 0 ? null : newDays });
-                          } else {
-                            const newDays = [...formData.availableDays, day];
-                            setFormData({ ...formData, availableDays: newDays.length === 7 ? null : newDays });
-                          }
-                        }}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                          isSelected ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
-                        {day.slice(0, 3)}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {!formData.availableDays ? 'All days (click to restrict)' : `${formData.availableDays.length} days selected`}
-                </p>
-              </div>
+                  {/* Branches */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Available Branches</label>
+                    <div className="space-y-1">
+                      {BRANCHES.map(branch => (
+                        <label key={branch.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={formData.branches?.includes(branch.id)}
+                            onChange={e => {
+                              const branches = e.target.checked
+                                ? [...(formData.branches || []), branch.id]
+                                : (formData.branches || []).filter(b => b !== branch.id);
+                              setFormData({ ...formData, branches });
+                            }}
+                            className="w-4 h-4 text-teal-600 rounded"
+                          />
+                          <span className="text-sm text-gray-700">{branch.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Weekend both or none */}
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.weekendBothOrNone || false}
-                  onChange={e => setFormData({ ...formData, weekendBothOrNone: e.target.checked })}
-                  className="w-4 h-4 text-teal-600 rounded"
-                />
-                <span className="text-sm text-gray-700">Must work both weekend days or none</span>
-              </label>
+                  {/* Main branch */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Main Branch (preferred)</label>
+                    <select
+                      value={formData.mainBranch || ''}
+                      onChange={e => setFormData({ ...formData, mainBranch: e.target.value || null })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
+                    >
+                      <option value="">No preference</option>
+                      {BRANCHES.filter(b => formData.branches?.includes(b.id)).map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Min shifts per week */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Min Shifts Per Week</label>
-                <input
-                  type="number"
-                  value={formData.minShiftsPerWeek || ''}
-                  onChange={e => setFormData({ ...formData, minShiftsPerWeek: e.target.value ? parseInt(e.target.value) : null })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-                  placeholder="Leave empty if no minimum"
-                  min="0"
-                  max="7"
-                />
-              </div>
+                  {/* Available days */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Available Days</label>
+                    <div className="flex flex-wrap gap-1">
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                        const isSelected = !formData.availableDays || formData.availableDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              if (!formData.availableDays) {
+                                setFormData({ ...formData, availableDays: [day] });
+                              } else if (formData.availableDays.includes(day)) {
+                                const newDays = formData.availableDays.filter(d => d !== day);
+                                setFormData({ ...formData, availableDays: newDays.length === 7 ? null : newDays.length === 0 ? null : newDays });
+                              } else {
+                                const newDays = [...formData.availableDays, day];
+                                setFormData({ ...formData, availableDays: newDays.length === 7 ? null : newDays });
+                              }
+                            }}
+                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                              isSelected ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {day.slice(0, 3)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {!formData.availableDays ? 'All days (click to restrict)' : `${formData.availableDays.length} days selected`}
+                    </p>
+                  </div>
+
+                  {/* Weekend both or none */}
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.weekendBothOrNone || false}
+                      onChange={e => setFormData({ ...formData, weekendBothOrNone: e.target.checked })}
+                      className="w-4 h-4 text-teal-600 rounded"
+                    />
+                    <span className="text-sm text-gray-700">Must work both weekend days or none</span>
+                  </label>
+
+                  {/* Min shifts per week */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Shifts Per Week</label>
+                    <input
+                      type="number"
+                      value={formData.minShiftsPerWeek || ''}
+                      onChange={e => setFormData({ ...formData, minShiftsPerWeek: e.target.value ? parseInt(e.target.value) : null })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
+                      placeholder="Leave empty if no minimum"
+                      min="0"
+                      max="7"
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Monthly hours target */}
               {formData.employmentType === 'permanent' && (

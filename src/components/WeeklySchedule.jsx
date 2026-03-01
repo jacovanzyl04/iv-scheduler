@@ -1,5 +1,5 @@
 import { useState, useCallback, Fragment } from 'react';
-import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours } from '../data/initialData';
+import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours, isScheduleRole } from '../data/initialData';
 import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, timeToMinutes } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
 import { ChevronLeft, ChevronRight, Wand2, Download, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, GripVertical, Stethoscope, Headphones, Clock } from 'lucide-react';
@@ -377,6 +377,7 @@ export default function WeeklySchedule({
     });
 
     return staff.filter(s => {
+      if (!isScheduleRole(s.role)) return false; // Support staff don't appear in schedule
       if (fullyAssigned.has(s.id)) return false;
       if (s.availableDays && !s.availableDays.includes(day)) return false;
       if (availability[s.id]?.includes(dateStr)) return false;
