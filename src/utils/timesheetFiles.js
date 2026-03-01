@@ -30,13 +30,17 @@ export async function uploadTimesheetFile(cycleKey, staffId, file) {
     throw new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 10MB.`);
   }
 
+  // Use 'raw' for PDFs (so they open/download correctly), 'image' for images
+  const isPdf = file.type === 'application/pdf';
+  const resourceType = isPdf ? 'raw' : 'image';
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('public_id', `timesheets/${cycleKey}/${staffId}_${Date.now()}`);
 
   const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
     { method: 'POST', body: formData }
   );
 
