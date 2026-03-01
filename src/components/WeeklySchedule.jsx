@@ -2,7 +2,8 @@ import { useState, useCallback, Fragment } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours, isScheduleRole } from '../data/initialData';
 import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, timeToMinutes } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
-import { ChevronLeft, ChevronRight, Wand2, Download, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, GripVertical, Stethoscope, Headphones, Clock } from 'lucide-react';
+import { exportScheduleToPdf } from '../utils/exportPdf';
+import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, GripVertical, Stethoscope, Headphones, Clock } from 'lucide-react';
 
 const STAFF_COLOR_MAP = {
   red: '#ef4444', orange: '#f97316', amber: '#f59e0b', green: '#22c55e',
@@ -280,6 +281,10 @@ export default function WeeklySchedule({
     exportScheduleToExcel(schedule, weekStartDate, staff);
   };
 
+  const handleExportPdf = () => {
+    exportScheduleToPdf(schedule, weekStartDate, staff);
+  };
+
   const removeAssignment = (day, branchId, role, staffId) => {
     setSchedule(prev => {
       const updated = JSON.parse(JSON.stringify(prev));
@@ -533,6 +538,13 @@ export default function WeeklySchedule({
           >
             <Download className="w-4 h-4" />
             Export Excel
+          </button>
+          <button
+            onClick={handleExportPdf}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+          >
+            <FileText className="w-4 h-4" />
+            Export PDF
           </button>
           <button
             onClick={() => setShowValidation(!showValidation)}

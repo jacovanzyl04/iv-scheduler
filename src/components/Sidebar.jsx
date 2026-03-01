@@ -1,8 +1,9 @@
-import { Calendar, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck } from 'lucide-react';
+import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck } from 'lucide-react';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'schedule', label: 'Weekly Schedule', icon: Calendar },
+  { id: 'calendar', label: 'Monthly Calendar', icon: CalendarDays },
   { id: 'staff', label: 'Staff', icon: Users },
   { id: 'availability', label: 'Availability', icon: ClipboardList },
   { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },

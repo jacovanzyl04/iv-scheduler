@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { INITIAL_STAFF, BRANCHES, DAYS_OF_WEEK } from './data/initialData';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage, subscribeToFirebase, isConfigured } from './utils/storage';
 import Sidebar from './components/Sidebar';
+import MonthlyCalendar from './components/MonthlyCalendar';
 import WeeklySchedule from './components/WeeklySchedule';
 import StaffManager from './components/StaffManager';
 import AvailabilityManager from './components/AvailabilityManager';
@@ -216,6 +217,13 @@ export default function App() {
             goToPrevWeek={goToPrevWeek}
             goToNextWeek={goToNextWeek}
             goToToday={goToToday}
+          />
+        )}
+
+        {activePage === 'calendar' && (
+          <MonthlyCalendar
+            schedules={schedules}
+            staff={staff}
           />
         )}
 
