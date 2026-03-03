@@ -5,7 +5,8 @@
       "name": "dev",
       "runtimeExecutable": "npx.cmd",
       "runtimeArgs": ["vite", "--port", "5173"],
-      "port": 5173
+      "port": 5173,
+      "cwd": "C:\\Users\\jacov\\iv-scheduler"
     }
   ]
 }

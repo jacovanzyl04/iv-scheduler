@@ -239,10 +239,10 @@ export default function App() {
   // Loading state
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-d4l-bg flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-teal-600 animate-spin mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading...</p>
+          <Loader2 className="w-8 h-8 text-d4l-gold animate-spin mx-auto mb-3" />
+          <p className="text-d4l-muted text-sm">Loading...</p>
         </div>
       </div>
     );
@@ -256,13 +256,13 @@ export default function App() {
   // Authenticated but no RTDB user record — account not set up yet
   if (!userRole) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-xl shadow-sm max-w-sm">
-          <p className="text-gray-700 font-medium mb-2">Account not configured</p>
-          <p className="text-gray-500 text-sm mb-4">Your login exists but hasn't been linked to a staff profile yet. Contact your admin.</p>
+      <div className="min-h-screen bg-d4l-bg flex items-center justify-center">
+        <div className="text-center bg-d4l-surface p-8 rounded-xl border border-d4l-border max-w-sm">
+          <p className="text-d4l-text font-medium mb-2">Account not configured</p>
+          <p className="text-d4l-muted text-sm mb-4">Your login exists but hasn't been linked to a staff profile yet. Contact your admin.</p>
           <button
             onClick={() => signOut(auth)}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+            className="px-4 py-2 bg-d4l-hover text-d4l-text2 rounded-lg hover:bg-d4l-active transition-colors text-sm"
           >
             Sign Out
           </button>
@@ -274,7 +274,7 @@ export default function App() {
   const isAdmin = userRole === 'admin';
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-d4l-bg">
       <Sidebar
         activePage={activePage}
         setActivePage={setActivePage}
@@ -285,7 +285,8 @@ export default function App() {
         onLogout={() => signOut(auth)}
       />
 
-      <main className={`flex-1 overflow-auto transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
+      <main className={`flex-1 overflow-auto transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-[68px]'}`}>
+        <div key={activePage} className="page-enter">
         {/* === ADMIN PAGES === */}
         {isAdmin && activePage === 'dashboard' && (
           <Dashboard
@@ -419,6 +420,7 @@ export default function App() {
             staffFilter={linkedStaffId}
           />
         )}
+        </div>
       </main>
     </div>
   );

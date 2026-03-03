@@ -1,16 +1,11 @@
-import { useState, useCallback, Fragment } from 'react';
+import { useState, useCallback, useEffect, Fragment } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours, isScheduleRole } from '../data/initialData';
 import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, timeToMinutes } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
 import { exportScheduleToPdf } from '../utils/exportPdf';
-import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, GripVertical, Stethoscope, Headphones, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, Clock, MoreHorizontal } from 'lucide-react';
 
-const STAFF_COLOR_MAP = {
-  red: '#ef4444', orange: '#f97316', amber: '#f59e0b', green: '#22c55e',
-  teal: '#14b8a6', blue: '#3b82f6', purple: '#8b5cf6', pink: '#ec4899',
-};
-
-// Format "HH:MM" → short hour display: "9", "13", "17"
+// Format "HH:MM" -> short hour display: "9", "13", "17"
 function fmtHour(t) {
   if (!t) return '';
   return String(parseInt(t.split(':')[0], 10));
@@ -49,7 +44,6 @@ function getDateStr(weekStart, dayIndex) {
   return `${year}-${month}-${day}`;
 }
 
-// Get all assignments for a staff member on a specific day across all branches
 function getStaffDayAssignments(staffId, day, schedule) {
   const assignments = [];
   BRANCHES.forEach(branch => {
@@ -69,7 +63,6 @@ function getStaffDayAssignments(staffId, day, schedule) {
   return assignments;
 }
 
-// Check if a proposed time range conflicts with existing assignments for a staff member
 function hasStaffTimeConflict(staffId, day, proposedStart, proposedEnd, schedule, excludeBranchId) {
   const assignments = getStaffDayAssignments(staffId, day, schedule);
   return assignments.some(a => {
@@ -91,9 +84,19 @@ export default function WeeklySchedule({
   const [showValidation, setShowValidation] = useState(false);
   const [dragOverTarget, setDragOverTarget] = useState(null);
   const [dragging, setDragging] = useState(null);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showUnassigned, setShowUnassigned] = useState(false);
+  const [showHours, setShowHours] = useState(false);
 
   const { warnings, errors } = validateSchedule(schedule, staff);
   const weeklyHours = calculateWeeklyHours(schedule, staff);
+
+  useEffect(() => {
+    if (!showActionsMenu) return;
+    const close = () => setShowActionsMenu(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [showActionsMenu]);
 
   // === Time slot helpers (Morning / Afternoon / Full Day) ===
 
@@ -412,179 +415,240 @@ export default function WeeklySchedule({
 
   // === RENDER HELPERS ===
 
-  const getStaffColor = (staffId) => {
-    const member = staff.find(s => s.id === staffId);
-    return member?.color ? STAFF_COLOR_MAP[member.color] : null;
+  const renderStaffChip = (person, role, day, branchId) => {
+    const timeRange = fmtShiftRange(person, branchId, day);
+    const isNurse = role === 'nurse';
+
+    return (
+      <div
+        key={person.id}
+        draggable={!readOnly && !person.locked}
+        onDragStart={(e) => handleDragStart(e, person.id, person.name, role, day, branchId)}
+        onDragEnd={handleDragEnd}
+        className={`group relative flex items-center gap-1.5 px-2 py-1 rounded-md border-l-2
+          ${isNurse ? 'border-l-blue-400' : 'border-l-pink-400'}
+          bg-d4l-raised/60 ${isNurse ? 'hover:bg-blue-500/8' : 'hover:bg-pink-500/8'}
+          ${!readOnly && !person.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+          transition-colors text-[12px]`}
+      >
+        <span className="flex-1 truncate text-d4l-text2 font-medium leading-tight">
+          {person.name}
+        </span>
+        {timeRange && (
+          <span className="text-[10px] text-d4l-dim shrink-0">{timeRange}</span>
+        )}
+        {person.locked && (
+          <span className="w-1.5 h-1.5 rounded-full bg-d4l-gold/60 shrink-0" title="Locked" />
+        )}
+        {!readOnly && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleLock(day, branchId, role, person.id); }}
+              className="hidden group-hover:flex absolute -left-1 -top-1 p-0.5 rounded-full bg-d4l-bg border border-d4l-border shadow-sm hover:bg-d4l-gold/20 hover:border-d4l-gold/30 text-d4l-dim hover:text-d4l-gold transition-colors z-10"
+              title={person.locked ? 'Unlock' : 'Lock'}
+            >
+              {person.locked ? <Unlock className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); removeAssignment(day, branchId, role, person.id); }}
+              className="hidden group-hover:flex absolute -right-1 -top-1 p-0.5 rounded-full bg-d4l-bg border border-d4l-border shadow-sm hover:bg-red-500/20 hover:border-red-500/30 text-d4l-dim hover:text-red-400 transition-colors z-10"
+              title="Remove"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </>
+        )}
+      </div>
+    );
   };
 
-  const colorStyle = (hex) => {
-    if (!hex) return undefined;
-    return { backgroundColor: `${hex}30`, borderColor: hex, color: '#1f2937' };
+  const renderMergedCell = (branch, day, dayIndex) => {
+    const open = isBranchOpen(branch.id, day);
+
+    if (!open) {
+      return (
+        <div key={day} className="bg-d4l-bg/80 p-2 flex items-center justify-center min-h-[76px]">
+          <span className="text-[11px] text-d4l-dim/50">Closed</span>
+        </div>
+      );
+    }
+
+    const cell = schedule[day]?.[branch.id];
+    const nurses = cell?.nurses || [];
+    const receptionists = cell?.receptionists || [];
+    const maxNurses = (branch.id === 'parkview' && day === 'Saturday') ? 2 : 1;
+    const needsNurse = nurses.length < maxNurses;
+    const needsReceptionist = !branch.isClinic && receptionists.length === 0;
+    const hasAloneNurse = cell?.nurses?.some(n => {
+      const s = staff.find(st => st.id === n.id);
+      return s?.canWorkAlone;
+    });
+
+    const isMissingCritical = needsNurse;
+    const isMissingMinor = needsReceptionist && !hasAloneNurse;
+    const todayBg = isToday(dayIndex) ? 'bg-d4l-gold/[0.03]' : 'bg-d4l-surface';
+    const nurseDropActive = isDropTarget(day, branch.id, 'nurse');
+    const recDropActive = isDropTarget(day, branch.id, 'receptionist');
+
+    return (
+      <div
+        key={day}
+        className={`${todayBg} p-1.5 min-h-[76px] flex flex-col transition-colors
+          ${isMissingCritical ? 'ring-1 ring-inset ring-red-500/20' : ''}
+          ${!isMissingCritical && isMissingMinor ? 'ring-1 ring-inset ring-amber-500/15' : ''}`}
+      >
+        {/* Nurse section */}
+        <div
+          className={`flex-1 flex flex-col gap-1 rounded-md p-0.5 transition-colors
+            ${nurseDropActive ? 'bg-d4l-gold/10 ring-1 ring-d4l-gold/40 ring-inset' : ''}`}
+          onDragOver={(e) => handleDragOver(e, day, branch.id, 'nurse')}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, day, branch.id, 'nurse')}
+        >
+          {nurses.map(n => renderStaffChip(n, 'nurse', day, branch.id))}
+          {!readOnly && needsNurse && !dragging && (
+            <button
+              onClick={() => setAssignModal({ day, branchId: branch.id, role: 'nurse' })}
+              className="w-full flex items-center justify-center gap-1 text-[11px] text-d4l-dim hover:text-blue-400 hover:bg-blue-500/5 rounded-md py-0.5 transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Nurse</span>
+            </button>
+          )}
+          {needsNurse && dragging?.role === 'nurse' && nurseDropActive && (
+            <div className="rounded-md border border-dashed border-d4l-gold/40 py-0.5 text-center text-[11px] text-d4l-gold/60">Drop</div>
+          )}
+        </div>
+
+        {/* Divider */}
+        {!branch.isClinic && (nurses.length > 0 || receptionists.length > 0) && (
+          <div className="border-t border-d4l-border/40 my-1" />
+        )}
+
+        {/* Receptionist section (skip for clinic) */}
+        {!branch.isClinic && (
+          <div
+            className={`flex-1 flex flex-col gap-1 rounded-md p-0.5 transition-colors
+              ${recDropActive ? 'bg-d4l-gold/10 ring-1 ring-d4l-gold/40 ring-inset' : ''}`}
+            onDragOver={(e) => handleDragOver(e, day, branch.id, 'receptionist')}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, day, branch.id, 'receptionist')}
+          >
+            {receptionists.map(r => renderStaffChip(r, 'receptionist', day, branch.id))}
+            {receptionists.length === 0 && hasAloneNurse && !dragging && (
+              <div className="text-[11px] text-d4l-dim/60 italic text-center">Solo</div>
+            )}
+            {!readOnly && receptionists.length === 0 && !dragging && (
+              <button
+                onClick={() => setAssignModal({ day, branchId: branch.id, role: 'receptionist' })}
+                className="w-full flex items-center justify-center gap-1 text-[11px] text-d4l-dim hover:text-pink-400 hover:bg-pink-500/5 rounded-md py-0.5 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                {!hasAloneNurse && <span>Recep.</span>}
+              </button>
+            )}
+            {receptionists.length === 0 && dragging?.role === 'receptionist' && recDropActive && (
+              <div className="rounded-md border border-dashed border-d4l-gold/40 py-0.5 text-center text-[11px] text-d4l-gold/60">Drop</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
-
-  const renderNurseBadge = (n, day, branchId) => {
-    const staffColor = getStaffColor(n.id);
-    const timeRange = fmtShiftRange(n, branchId, day);
-    return (
-    <div
-      key={n.id}
-      draggable={!readOnly && !n.locked}
-      onDragStart={(e) => handleDragStart(e, n.id, n.name, 'nurse', day, branchId)}
-      onDragEnd={handleDragEnd}
-      className={`group relative nurse-badge pr-1 ${!readOnly && !n.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
-      style={colorStyle(staffColor)}
-    >
-      {!readOnly && !n.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
-      <Stethoscope className="w-3 h-3 shrink-0 text-blue-500" />
-      <span className="flex-1 truncate text-center">
-        {n.name}
-        {timeRange && <span className="text-[10px] text-gray-500 ml-0.5">({timeRange})</span>}
-      </span>
-      {n.locked && <Lock className="w-3 h-3 shrink-0 opacity-40" />}
-      {!readOnly && (
-      <div className="hidden group-hover:flex items-center gap-0.5 absolute right-0 top-0 bottom-0 bg-blue-100 rounded-r-full pl-1 pr-1">
-        <button
-          onClick={() => toggleLock(day, branchId, 'nurse', n.id)}
-          className="p-0.5 rounded hover:bg-blue-200"
-          title={n.locked ? 'Unlock' : 'Lock'}
-        >
-          {n.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-        </button>
-        <button
-          onClick={() => removeAssignment(day, branchId, 'nurse', n.id)}
-          className="p-0.5 rounded hover:bg-red-200 text-red-600"
-          title="Remove"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-      )}
-    </div>
-  ); };
-
-  const renderReceptionistBadge = (r, day, branchId) => {
-    const staffColor = getStaffColor(r.id);
-    return (
-    <div
-      key={r.id}
-      draggable={!readOnly && !r.locked}
-      onDragStart={(e) => handleDragStart(e, r.id, r.name, 'receptionist', day, branchId)}
-      onDragEnd={handleDragEnd}
-      className={`group relative receptionist-badge pr-1 ${!readOnly && !r.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
-      style={colorStyle(staffColor)}
-    >
-      {!readOnly && !r.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
-      <Headphones className="w-3 h-3 shrink-0 text-pink-500" />
-      <span className="flex-1 truncate text-center">{r.name}</span>
-      {r.locked && <Lock className="w-3 h-3 shrink-0 opacity-40" />}
-      {!readOnly && (
-      <div className="hidden group-hover:flex items-center gap-0.5 absolute right-0 top-0 bottom-0 bg-pink-100 rounded-r-full pl-1 pr-1">
-        <button
-          onClick={() => toggleLock(day, branchId, 'receptionist', r.id)}
-          className="p-0.5 rounded hover:bg-pink-200"
-          title={r.locked ? 'Unlock' : 'Lock'}
-        >
-          {r.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-        </button>
-        <button
-          onClick={() => removeAssignment(day, branchId, 'receptionist', r.id)}
-          className="p-0.5 rounded hover:bg-red-200 text-red-600"
-          title="Remove"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-      )}
-    </div>
-  ); };
 
   return (
     <div className="p-4 lg:p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+      {/* === TOOLBAR === */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+        {/* Left: Title */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">{readOnly ? 'Full Schedule' : 'Weekly Schedule'}</h1>
-          <p className="text-gray-500 text-sm">{readOnly ? "View the team's weekly assignments" : 'Drag staff between cells or click + to assign'}</p>
+          <h1 className="text-xl font-bold text-d4l-text">{readOnly ? 'Full Schedule' : 'Weekly Schedule'}</h1>
+          <p className="text-d4l-muted text-xs">{readOnly ? "View the team's weekly assignments" : 'Drag staff between cells or click + to assign'}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
-            <ChevronLeft className="w-5 h-5" />
+        {/* Center: Week nav in a pill */}
+        <div className="flex items-center gap-1 bg-d4l-surface rounded-xl border border-d4l-border px-1 py-1">
+          <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
+            <ChevronLeft className="w-4 h-4" />
           </button>
-          <button onClick={goToToday} className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+          <button onClick={goToToday} className="px-3 py-1.5 text-xs font-semibold text-d4l-gold hover:bg-d4l-gold/10 rounded-lg transition-colors">
             Today
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[180px] text-center">
+          <span className="text-sm font-medium text-d4l-text2 min-w-[170px] text-center select-none">
             {formatWeekRange(currentWeekStart)}
           </span>
-          <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
-            <ChevronRight className="w-5 h-5" />
+          <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Right: Actions (admin only) */}
         {!readOnly && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleAutoSchedule}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors shadow-sm"
-          >
-            <Wand2 className="w-4 h-4" />
-            Auto Schedule
-          </button>
-          <button
-            onClick={handleClearSchedule}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Clear
-          </button>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Download className="w-4 h-4" />
-            Export Excel
-          </button>
-          <button
-            onClick={handleExportPdf}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-          >
-            <FileText className="w-4 h-4" />
-            Export PDF
-          </button>
-          <button
-            onClick={() => setShowValidation(!showValidation)}
-            className={`relative flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              errors.length > 0 ? 'bg-red-100 text-red-700 hover:bg-red-200' :
-              warnings.length > 0 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' :
-              'bg-green-100 text-green-700 hover:bg-green-200'
-            }`}
-          >
-            {errors.length > 0 ? <AlertCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-            {errors.length + warnings.length} Issues
-          </button>
-        </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleAutoSchedule}
+              className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black text-sm font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+              <Wand2 className="w-4 h-4" />
+              Auto Schedule
+            </button>
+
+            {/* More actions dropdown */}
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-d4l-surface border border-d4l-border text-d4l-text2 text-sm rounded-lg hover:bg-d4l-hover transition-colors"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              {showActionsMenu && (
+                <div className="absolute right-0 top-full mt-1 w-48 bg-d4l-surface border border-d4l-border rounded-xl shadow-xl z-40 py-1 animate-fade-in">
+                  <button onClick={() => { handleClearSchedule(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-d4l-text2 hover:bg-d4l-hover flex items-center gap-2.5 transition-colors">
+                    <Trash2 className="w-4 h-4" /> Clear Schedule
+                  </button>
+                  <button onClick={() => { handleExport(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-d4l-text2 hover:bg-d4l-hover flex items-center gap-2.5 transition-colors">
+                    <Download className="w-4 h-4" /> Export Excel
+                  </button>
+                  <button onClick={() => { handleExportPdf(); setShowActionsMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-d4l-text2 hover:bg-d4l-hover flex items-center gap-2.5 transition-colors">
+                    <FileText className="w-4 h-4" /> Export PDF
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Issues badge */}
+            <button onClick={() => setShowValidation(!showValidation)}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                errors.length > 0 ? 'text-red-400 hover:bg-red-500/10' :
+                warnings.length > 0 ? 'text-amber-400 hover:bg-amber-500/10' :
+                'text-green-400 hover:bg-green-500/10'
+              }`}>
+              {errors.length > 0 ? <AlertCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+              <span className="font-medium">{errors.length + warnings.length}</span>
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Validation panel */}
+      {/* === VALIDATION PANEL === */}
       {showValidation && (errors.length > 0 || warnings.length > 0) && (
-        <div className="bg-white rounded-xl shadow-sm border p-4 mb-4 animate-fade-in">
+        <div className="bg-d4l-surface rounded-xl border border-d4l-border p-4 mb-4 animate-fade-in">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-gray-700">Schedule Validation</h3>
-            <button onClick={() => setShowValidation(false)} className="text-gray-400 hover:text-gray-600">
+            <h3 className="font-semibold text-d4l-text2 text-sm">Schedule Validation</h3>
+            <button onClick={() => setShowValidation(false)} className="text-d4l-dim hover:text-d4l-text2">
               <X className="w-4 h-4" />
             </button>
           </div>
           <div className="space-y-1 max-h-48 overflow-y-auto">
             {errors.map((err, i) => (
-              <div key={`e-${i}`} className="flex items-start gap-2 text-sm text-red-700 bg-red-50 p-2 rounded">
+              <div key={`e-${i}`} className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 p-2 rounded">
                 <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 {err}
               </div>
             ))}
             {warnings.map((warn, i) => (
-              <div key={`w-${i}`} className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 p-2 rounded">
+              <div key={`w-${i}`} className="flex items-start gap-2 text-sm text-amber-400 bg-amber-500/10 p-2 rounded">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 {warn}
               </div>
@@ -593,236 +657,134 @@ export default function WeeklySchedule({
         </div>
       )}
 
-      {/* Schedule Grid */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-          <thead>
-            <tr>
-              <th className="w-32 p-2 text-left text-sm font-semibold text-gray-600 bg-gray-100 rounded-tl-lg">Branch</th>
-              {DAYS_OF_WEEK.map((day, i) => (
-                <th key={day} className={`p-2 text-center text-sm font-semibold bg-gray-100 ${i === 6 ? 'rounded-tr-lg' : ''} ${isToday(i) ? 'bg-teal-100 text-teal-800' : 'text-gray-600'}`}>
-                  <div>{day.slice(0, 3)}</div>
-                  <div className="text-xs font-normal text-gray-400">{getDayDate(currentWeekStart, i)}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {BRANCHES.map(branch => (
-              <Fragment key={branch.id}>
-                {/* Nurse row */}
-                <tr key={`${branch.id}-nurse`} className="border-b border-gray-100">
-                  <td className="p-2 text-sm" style={{ borderLeft: `4px solid ${branch.color}` }}>
-                    <div className="font-medium text-gray-800">{branch.name}</div>
-                    <div className="text-xs text-blue-600 font-medium">Nurse</div>
-                  </td>
-                  {DAYS_OF_WEEK.map((day, i) => {
-                    const open = isBranchOpen(branch.id, day);
-                    const cell = schedule[day]?.[branch.id];
-                    const nurses = cell?.nurses || [];
-
-                    if (!open) {
-                      return (
-                        <td key={day} className="p-1 text-center bg-gray-50">
-                          <span className="text-xs text-gray-400">Closed</span>
-                        </td>
-                      );
-                    }
-
-                    const isDrop = isDropTarget(day, branch.id, 'nurse');
-                    const maxNurses = (branch.id === 'parkview' && day === 'Saturday') ? 2 : 1;
-                    const needsMore = nurses.length < maxNurses;
-
-                    return (
-                      <td
-                        key={day}
-                        className={`p-1 schedule-cell transition-colors ${isToday(i) ? 'bg-teal-50/50' : ''} ${needsMore && !dragging ? 'bg-red-50/50' : ''} ${isDrop ? 'bg-teal-100 ring-2 ring-teal-400 ring-inset' : ''} ${dragging?.role === 'nurse' && needsMore ? 'bg-teal-50/30' : ''}`}
-                        onDragOver={(e) => handleDragOver(e, day, branch.id, 'nurse')}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, day, branch.id, 'nurse')}
-                      >
-                        <div className="space-y-1">
-                          {nurses.map(n => renderNurseBadge(n, day, branch.id))}
-                          {!readOnly && needsMore && !dragging && (
-                            <button
-                              onClick={() => setAssignModal({ day, branchId: branch.id, role: 'nurse' })}
-                              className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded p-1 transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Assign
-                            </button>
-                          )}
-                          {needsMore && dragging?.role === 'nurse' && (
-                            <div className="text-xs text-teal-400 text-center p-1">Drop here</div>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-
-                {/* Receptionist row — skip for clinic */}
-                {!branch.isClinic && (
-                <tr key={`${branch.id}-rec`} className="border-b-2 border-gray-200">
-                  <td className="p-2 text-sm" style={{ borderLeft: `4px solid ${branch.color}` }}>
-                    <div className="text-xs text-pink-600 font-medium">Receptionist</div>
-                  </td>
-                  {DAYS_OF_WEEK.map((day, i) => {
-                    const open = isBranchOpen(branch.id, day);
-                    const cell = schedule[day]?.[branch.id];
-                    const receptionists = cell?.receptionists || [];
-
-                    if (!open) {
-                      return <td key={day} className="p-1 text-center bg-gray-50"></td>;
-                    }
-
-                    const hasAloneNurse = cell?.nurses?.some(n => {
-                      const s = staff.find(st => st.id === n.id);
-                      return s?.canWorkAlone;
-                    });
-
-                    const isDrop = isDropTarget(day, branch.id, 'receptionist');
-
-                    return (
-                      <td
-                        key={day}
-                        className={`p-1 schedule-cell transition-colors ${isToday(i) ? 'bg-teal-50/50' : ''} ${receptionists.length === 0 && !hasAloneNurse && !dragging ? 'bg-amber-50/50' : ''} ${isDrop ? 'bg-teal-100 ring-2 ring-teal-400 ring-inset' : ''} ${dragging?.role === 'receptionist' && receptionists.length === 0 ? 'bg-teal-50/30' : ''}`}
-                        onDragOver={(e) => handleDragOver(e, day, branch.id, 'receptionist')}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, day, branch.id, 'receptionist')}
-                      >
-                        <div className="space-y-1">
-                          {receptionists.map(r => renderReceptionistBadge(r, day, branch.id))}
-                          {receptionists.length === 0 && hasAloneNurse && !dragging && (
-                            <div className="text-xs text-gray-400 italic text-center">Nurse alone</div>
-                          )}
-                          {!readOnly && receptionists.length === 0 && !dragging && (
-                            <button
-                              onClick={() => setAssignModal({ day, branchId: branch.id, role: 'receptionist' })}
-                              className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded p-1 transition-colors"
-                            >
-                              <Plus className="w-3 h-3" />
-                              {!hasAloneNurse ? 'Assign' : ''}
-                            </button>
-                          )}
-                          {receptionists.length === 0 && dragging?.role === 'receptionist' && (
-                            <div className="text-xs text-teal-400 text-center p-1">Drop here</div>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-                )}
-                {branch.isClinic && (
-                  <tr key={`${branch.id}-rec`} className="border-b-2 border-gray-200">
-                    <td className="p-2 text-sm" style={{ borderLeft: `4px solid ${branch.color}` }}>
-                      <div className="text-xs text-gray-400 italic">Nurse only</div>
-                    </td>
-                    {DAYS_OF_WEEK.map((day) => (
-                      <td key={day} className="p-1 text-center bg-gray-50/50">
-                        <span className="text-xs text-gray-300">&mdash;</span>
-                      </td>
-                    ))}
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-
-            {/* Unassigned Staff Pool Row */}
-            {!readOnly && <tr className="border-t-2 border-teal-200">
-              <td className="p-2 text-sm bg-teal-50 font-medium text-teal-700 align-top" style={{ borderLeft: '4px solid #14b8a6' }}>
-                Unassigned
-                <div className="text-xs font-normal text-teal-500">Drag to schedule</div>
-              </td>
-              {DAYS_OF_WEEK.map((day) => {
-                const unassigned = getUnassignedForDay(day);
-                const unassignedNurses = unassigned.filter(s => s.role === 'nurse');
-                const unassignedRecs = unassigned.filter(s => s.role === 'receptionist');
-
-                return (
-                  <td key={day} className="p-1 align-top bg-teal-50/30">
-                    <div className="space-y-0.5 max-h-36 overflow-y-auto">
-                      {unassignedNurses.map(member => {
-                        const sc = member.color ? STAFF_COLOR_MAP[member.color] : null;
-                        return (
+      {/* === COLLAPSIBLE UNASSIGNED POOL (above grid) === */}
+      {!readOnly && (
+        <div className="mb-3">
+          <button
+            onClick={() => setShowUnassigned(!showUnassigned)}
+            className="flex items-center gap-2 text-sm text-d4l-muted hover:text-d4l-text2 transition-colors mb-2"
+          >
+            <ChevronRight className={`w-4 h-4 transition-transform ${showUnassigned ? 'rotate-90' : ''}`} />
+            <span className="font-medium">Unassigned Staff</span>
+            <span className="text-xs text-d4l-dim">
+              ({DAYS_OF_WEEK.reduce((sum, day) => sum + getUnassignedForDay(day).length, 0)} across week)
+            </span>
+          </button>
+          {showUnassigned && (
+            <div className="bg-d4l-surface rounded-xl border border-d4l-border p-3 animate-fade-in">
+              <div style={{ display: 'grid', gridTemplateColumns: '140px repeat(7, 1fr)', gap: '8px' }}>
+                <div className="text-xs text-d4l-dim self-start pt-1">Drag to assign</div>
+                {DAYS_OF_WEEK.map(day => {
+                  const unassigned = getUnassignedForDay(day);
+                  return (
+                    <div key={day} className="space-y-1 max-h-28 overflow-y-auto">
+                      {unassigned.map(member => (
                         <div
                           key={member.id}
                           draggable
                           onDragStart={(e) => handlePoolDragStart(e, member, day)}
                           onDragEnd={handleDragEnd}
-                          className="nurse-badge cursor-grab active:cursor-grabbing opacity-60 hover:opacity-100 transition-opacity"
-                          style={colorStyle(sc)}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px]
+                            cursor-grab active:cursor-grabbing border-l-2
+                            ${member.role === 'nurse' ? 'border-l-blue-400' : 'border-l-pink-400'}
+                            bg-d4l-bg hover:bg-d4l-hover text-d4l-muted hover:text-d4l-text2 transition-colors`}
                         >
-                          <GripVertical className="w-3 h-3 shrink-0 opacity-40" />
-                          <Stethoscope className="w-3 h-3 shrink-0 text-blue-500" />
-                          <span className="flex-1 truncate text-center">{member.name}</span>
+                          <span className="truncate">{member.name}</span>
                         </div>
-                        );
-                      })}
-                      {unassignedRecs.map(member => {
-                        const sc = member.color ? STAFF_COLOR_MAP[member.color] : null;
-                        return (
-                        <div
-                          key={member.id}
-                          draggable
-                          onDragStart={(e) => handlePoolDragStart(e, member, day)}
-                          onDragEnd={handleDragEnd}
-                          className="receptionist-badge cursor-grab active:cursor-grabbing opacity-60 hover:opacity-100 transition-opacity"
-                          style={colorStyle(sc)}
-                        >
-                          <GripVertical className="w-3 h-3 shrink-0 opacity-40" />
-                          <Headphones className="w-3 h-3 shrink-0 text-pink-500" />
-                          <span className="flex-1 truncate text-center">{member.name}</span>
-                        </div>
-                        );
-                      })}
+                      ))}
                       {unassigned.length === 0 && (
-                        <span className="text-xs text-gray-300">All assigned</span>
+                        <span className="text-[10px] text-d4l-dim/50">&mdash;</span>
                       )}
                     </div>
-                  </td>
-                );
-              })}
-            </tr>}
-          </tbody>
-        </table>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* === SCHEDULE GRID (CSS Grid) === */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[900px]" style={{
+          display: 'grid',
+          gridTemplateColumns: '140px repeat(7, 1fr)',
+          gap: '1px',
+          backgroundColor: 'var(--color-d4l-border)',
+          borderRadius: '12px',
+          overflow: 'hidden',
+        }}>
+          {/* Header row */}
+          <div className="bg-d4l-raised p-3 flex items-end">
+            <span className="text-xs font-semibold text-d4l-dim uppercase tracking-wider">Branch</span>
+          </div>
+          {DAYS_OF_WEEK.map((day, i) => (
+            <div key={day} className={`bg-d4l-raised p-3 text-center ${isToday(i) ? 'border-b-2 border-d4l-gold' : ''}`}>
+              <div className={`text-sm font-semibold ${isToday(i) ? 'text-d4l-gold' : 'text-d4l-text2'}`}>
+                {day.slice(0, 3)}
+              </div>
+              <div className={`text-xs mt-0.5 ${isToday(i) ? 'text-d4l-gold/70' : 'text-d4l-dim'}`}>
+                {getDayDate(currentWeekStart, i)}
+              </div>
+            </div>
+          ))}
+
+          {/* Branch rows — ONE per branch */}
+          {BRANCHES.map(branch => (
+            <Fragment key={branch.id}>
+              <div className="bg-d4l-surface p-3 flex flex-col justify-center" style={{ borderLeft: `3px solid ${branch.color}` }}>
+                <span className="text-sm font-semibold text-d4l-text leading-tight">{branch.name}</span>
+                <span className="text-[11px] text-d4l-dim mt-0.5">
+                  {branch.isClinic ? 'Nurse only' : 'Nurse + Recep.'}
+                </span>
+              </div>
+              {DAYS_OF_WEEK.map((day, i) => renderMergedCell(branch, day, i))}
+            </Fragment>
+          ))}
+        </div>
       </div>
 
-      {/* Weekly hours summary */}
-      {!readOnly && <div className="mt-6 bg-white rounded-xl shadow-sm border p-4">
-        <h3 className="font-semibold text-gray-700 mb-3">Staff Hours This Week</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {staff.map(member => {
-            const hrs = weeklyHours[member.id];
-            if (!hrs || hrs.shifts === 0) return null;
-            return (
-              <div key={member.id} className="bg-gray-50 rounded-lg p-2 text-sm">
-                <div className="font-medium text-gray-700">{member.name}</div>
-                <div className="text-gray-500 text-xs">{hrs.shifts} shifts &middot; {hrs.total}h</div>
+      {/* === COLLAPSIBLE HOURS SUMMARY === */}
+      {!readOnly && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowHours(!showHours)}
+            className="flex items-center gap-2 text-sm text-d4l-muted hover:text-d4l-text2 transition-colors mb-2"
+          >
+            <ChevronRight className={`w-4 h-4 transition-transform ${showHours ? 'rotate-90' : ''}`} />
+            <span className="font-medium">Staff Hours This Week</span>
+          </button>
+          {showHours && (
+            <div className="bg-d4l-surface rounded-xl border border-d4l-border p-4 animate-fade-in">
+              <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
+                {staff.filter(m => weeklyHours[m.id]?.shifts > 0).map(member => (
+                  <div key={member.id} className="bg-d4l-bg rounded-lg px-3 py-2">
+                    <div className="font-medium text-d4l-text2 text-xs">{member.name}</div>
+                    <div className="text-d4l-dim text-[11px]">{weeklyHours[member.id].shifts}s &middot; {weeklyHours[member.id].total}h</div>
+                  </div>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
-      </div>}
+      )}
 
-      {/* Assignment Modal (staff list) */}
+      {/* === ASSIGNMENT MODAL === */}
       {assignModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setAssignModal(null)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-96 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAssignModal(null)}>
+          <div className="bg-d4l-surface rounded-xl shadow-xl p-6 w-80 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800">
+              <h3 className="font-semibold text-d4l-text text-sm">
                 Assign {assignModal.role === 'nurse' ? 'Nurse' : 'Receptionist'}
               </h3>
-              <button onClick={() => setAssignModal(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
+              <button onClick={() => setAssignModal(null)} className="text-d4l-dim hover:text-d4l-text2">
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-sm text-gray-500 mb-3">
+            <p className="text-xs text-d4l-muted mb-3">
               {BRANCHES.find(b => b.id === assignModal.branchId)?.name} &mdash; {assignModal.day}
-              <span className="ml-1 text-xs text-teal-600">(time slots available)</span>
             </p>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {getAvailableStaff(assignModal.day, assignModal.branchId, assignModal.role).map(member => {
                 const isLastResort = member.lastResortBranches?.includes(assignModal.branchId);
                 const isMainBranch = member.mainBranch === assignModal.branchId;
@@ -830,23 +792,23 @@ export default function WeeklySchedule({
                   <button
                     key={member.id}
                     onClick={() => handleAssignClick(assignModal.day, assignModal.branchId, assignModal.role, member)}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-teal-50 transition-colors flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-d4l-gold/5 transition-colors flex items-center justify-between"
                   >
                     <div>
-                      <span className="font-medium text-gray-800">{member.name}</span>
-                      {isMainBranch && <span className="ml-2 text-xs text-teal-600">(Main branch)</span>}
-                      {isLastResort && <span className="ml-2 text-xs text-red-500">(Last resort)</span>}
-                      {member.canWorkAlone && <span className="ml-2 text-xs text-blue-500">(Can work alone)</span>}
+                      <span className="font-medium text-d4l-text text-sm">{member.name}</span>
+                      {isMainBranch && <span className="ml-2 text-[10px] text-d4l-gold">(Main)</span>}
+                      {isLastResort && <span className="ml-2 text-[10px] text-red-400">(Last resort)</span>}
+                      {member.canWorkAlone && <span className="ml-2 text-[10px] text-blue-400">(Solo OK)</span>}
                     </div>
-                    <span className="text-xs text-gray-400">
-                      {weeklyHours[member.id]?.shifts || 0} shifts
+                    <span className="text-[10px] text-d4l-dim">
+                      {weeklyHours[member.id]?.shifts || 0}s
                     </span>
                   </button>
                 );
               })}
               {getAvailableStaff(assignModal.day, assignModal.branchId, assignModal.role).length === 0 && (
-                <div className="text-center py-4 text-gray-400 text-sm">
-                  No available {assignModal.role}s for this slot
+                <div className="text-center py-4 text-d4l-dim text-sm">
+                  No available {assignModal.role}s
                 </div>
               )}
             </div>
@@ -854,20 +816,20 @@ export default function WeeklySchedule({
         </div>
       )}
 
-      {/* Time Picker Modal */}
+      {/* === TIME PICKER MODAL === */}
       {timePickerModal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setTimePickerModal(null)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-80 animate-fade-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setTimePickerModal(null)}>
+          <div className="bg-d4l-surface rounded-xl shadow-xl p-6 w-72 animate-fade-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+              <h3 className="font-semibold text-d4l-text text-sm flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 Select Time Slot
               </h3>
-              <button onClick={() => setTimePickerModal(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
+              <button onClick={() => setTimePickerModal(null)} className="text-d4l-dim hover:text-d4l-text2">
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-xs text-d4l-muted mb-4">
               {timePickerModal.staffMember.name} &mdash; {BRANCHES.find(b => b.id === timePickerModal.branchId)?.name}
             </p>
             {!customTimeMode ? (
@@ -880,9 +842,9 @@ export default function WeeklySchedule({
                       timePickerModal.role, timePickerModal.staffMember,
                       slot.start, slot.end
                     )}
-                    className="w-full text-left px-4 py-3 rounded-lg border hover:bg-teal-50 hover:border-teal-300 transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-lg border border-d4l-border hover:bg-d4l-gold/5 hover:border-d4l-gold/30 transition-colors"
                   >
-                    <div className="font-medium text-gray-800">{slot.label}</div>
+                    <div className="font-medium text-d4l-text text-sm">{slot.label}</div>
                   </button>
                 ))}
                 <button
@@ -893,43 +855,33 @@ export default function WeeklySchedule({
                     setCustomEnd(hrs?.close || '17:00');
                     setCustomTimeMode(true);
                   }}
-                  className="w-full text-left px-4 py-3 rounded-lg border border-dashed hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                  className="w-full text-left px-4 py-3 rounded-lg border border-dashed border-d4l-border hover:bg-d4l-bg hover:border-d4l-dim transition-colors"
                 >
-                  <div className="font-medium text-gray-500">Custom times...</div>
+                  <div className="font-medium text-d4l-muted text-sm">Custom times...</div>
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <label className="text-sm text-gray-600 w-12">Start</label>
-                  <input
-                    type="time"
-                    value={customStart}
-                    onChange={e => setCustomStart(e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                  />
+                  <label className="text-sm text-d4l-text2 w-12">Start</label>
+                  <input type="time" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-d4l-border rounded-lg text-sm bg-d4l-bg text-d4l-text focus:outline-none focus:ring-2 focus:ring-d4l-gold/50" />
                 </div>
                 <div className="flex items-center gap-3">
-                  <label className="text-sm text-gray-600 w-12">End</label>
-                  <input
-                    type="time"
-                    value={customEnd}
-                    onChange={e => setCustomEnd(e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-                  />
+                  <label className="text-sm text-d4l-text2 w-12">End</label>
+                  <input type="time" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-d4l-border rounded-lg text-sm bg-d4l-bg text-d4l-text focus:outline-none focus:ring-2 focus:ring-d4l-gold/50" />
                 </div>
                 {customStart && customEnd && timeToMinutes(customEnd) <= timeToMinutes(customStart) && (
-                  <p className="text-xs text-red-500">End time must be after start time</p>
+                  <p className="text-xs text-red-400">End time must be after start time</p>
                 )}
                 {customStart && customEnd && timeToMinutes(customEnd) > timeToMinutes(customStart) &&
                   hasStaffTimeConflict(timePickerModal.staffMember.id, timePickerModal.day, customStart, customEnd, schedule, timePickerModal.branchId) && (
-                  <p className="text-xs text-red-500">Conflicts with an existing assignment</p>
+                  <p className="text-xs text-red-400">Conflicts with an existing assignment</p>
                 )}
                 <div className="flex gap-2 pt-1">
-                  <button
-                    onClick={() => setCustomTimeMode(false)}
-                    className="flex-1 px-3 py-2 rounded-lg border text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
+                  <button onClick={() => setCustomTimeMode(false)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-d4l-border text-sm text-d4l-text2 hover:bg-d4l-bg transition-colors">
                     Back
                   </button>
                   <button
@@ -945,7 +897,7 @@ export default function WeeklySchedule({
                     }}
                     disabled={!customStart || !customEnd || timeToMinutes(customEnd) <= timeToMinutes(customStart) ||
                       hasStaffTimeConflict(timePickerModal.staffMember.id, timePickerModal.day, customStart, customEnd, schedule, timePickerModal.branchId)}
-                    className="flex-1 px-3 py-2 rounded-lg bg-teal-600 text-white text-sm hover:bg-teal-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex-1 px-3 py-2 rounded-lg bg-d4l-gold text-black font-semibold text-sm hover:bg-d4l-gold-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Assign
                   </button>

@@ -11,13 +11,23 @@ import {
 } from '../utils/payCycle';
 import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup } from '../utils/timesheetFiles';
 
-// Isolated input that uses local state while focused to prevent Firebase
-// round-trip from overwriting text mid-typing. Syncs to parent on blur.
+const gradients = {
+  blue: 'from-blue-500 to-cyan-400',
+  green: 'from-green-500 to-emerald-400',
+  red: 'from-red-500 to-rose-400',
+  amber: 'from-amber-500 to-yellow-400',
+};
+const glows = {
+  blue: 'rgba(59,130,246,0.07)',
+  green: 'rgba(34,197,94,0.07)',
+  red: 'rgba(239,68,68,0.07)',
+  amber: 'rgba(245,158,11,0.07)',
+};
+
 function NotesInput({ value, onChange, placeholder, className }) {
   const [localValue, setLocalValue] = useState(value || '');
   const [focused, setFocused] = useState(false);
 
-  // Sync from parent when not focused (e.g. Firebase update while idle)
   useEffect(() => {
     if (!focused) setLocalValue(value || '');
   }, [value, focused]);
@@ -45,27 +55,14 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const fileInputRef = useRef(null);
   const uploadTargetStaff = useRef(null);
 
-  // Auto-cleanup old pay cycle files on mount
   useEffect(() => { runMonthlyCleanup(timesheets, setTimesheets); }, []);
 
   const cycleRange = useMemo(() => getPayCycleRange(currentCycle), [currentCycle]);
-
-  const scheduledStaff = useMemo(
-    () => getScheduledStaffForPayCycle(schedules, staff, currentCycle),
-    [schedules, staff, currentCycle]
-  );
-
-  const supportStaff = useMemo(
-    () => getSupportStaffForPayCycle(staff),
-    [staff]
-  );
-
-  // Merge scheduled + support staff for totals
+  const scheduledStaff = useMemo(() => getScheduledStaffForPayCycle(schedules, staff, currentCycle), [schedules, staff, currentCycle]);
+  const supportStaff = useMemo(() => getSupportStaffForPayCycle(staff), [staff]);
   const allStaff = useMemo(() => ({ ...scheduledStaff, ...supportStaff }), [scheduledStaff, supportStaff]);
 
   const cycleTimesheets = timesheets[currentCycle] || {};
-
-  // Summary counts
   const staffEntries = Object.entries(allStaff);
   const filteredEntries = staffFilter ? staffEntries.filter(([id]) => id === staffFilter) : staffEntries;
   const totalStaff = filteredEntries.length;
@@ -73,7 +70,6 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const pendingCount = totalStaff - submittedCount;
   const filesUploadedCount = filteredEntries.filter(([id]) => cycleTimesheets[id]?.fileUrl).length;
 
-  // Split by role
   const nurses = filteredEntries.filter(([, info]) => info.role === 'nurse').sort((a, b) => a[1].name.localeCompare(b[1].name));
   const receptionists = filteredEntries.filter(([, info]) => info.role === 'receptionist').sort((a, b) => a[1].name.localeCompare(b[1].name));
   const support = filteredEntries.filter(([, info]) => !isScheduleRole(info.role)).sort((a, b) => a[1].name.localeCompare(b[1].name));
@@ -83,17 +79,10 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       const updated = { ...prev };
       if (!updated[currentCycle]) updated[currentCycle] = {};
       const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
-
       if (current.status === 'pending') {
-        updated[currentCycle] = {
-          ...updated[currentCycle],
-          [staffId]: { ...current, status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] },
-        };
+        updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] } };
       } else {
-        updated[currentCycle] = {
-          ...updated[currentCycle],
-          [staffId]: { ...current, status: 'pending', submittedDate: null },
-        };
+        updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, status: 'pending', submittedDate: null } };
       }
       return updated;
     });
@@ -104,10 +93,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       const updated = { ...prev };
       if (!updated[currentCycle]) updated[currentCycle] = {};
       const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
-      updated[currentCycle] = {
-        ...updated[currentCycle],
-        [staffId]: { ...current, notes },
-      };
+      updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, notes } };
       return updated;
     });
   };
@@ -128,26 +114,15 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
     if (!file) return;
     const staffId = uploadTargetStaff.current;
     if (!staffId) return;
-
     setUploadingStaff(staffId);
     setUploadError(null);
-
     try {
       const { fileUrl, fileName } = await uploadTimesheetFile(currentCycle, staffId, file);
       setTimesheets(prev => {
         const updated = { ...prev };
         if (!updated[currentCycle]) updated[currentCycle] = {};
         const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
-        updated[currentCycle] = {
-          ...updated[currentCycle],
-          [staffId]: {
-            ...current,
-            fileUrl,
-            fileName,
-            status: 'submitted',
-            submittedDate: new Date().toISOString().split('T')[0],
-          },
-        };
+        updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, fileUrl, fileName, status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] } };
         return updated;
       });
     } catch (err) {
@@ -164,10 +139,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         const updated = { ...prev };
         if (!updated[currentCycle]?.[staffId]) return prev;
         const { fileUrl, fileName, ...rest } = updated[currentCycle][staffId];
-        updated[currentCycle] = {
-          ...updated[currentCycle],
-          [staffId]: { ...rest, status: 'pending', submittedDate: null },
-        };
+        updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...rest, status: 'pending', submittedDate: null } };
         return updated;
       });
     } catch (err) {
@@ -180,262 +152,208 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
     const isSubmitted = ts.status === 'submitted';
 
     return (
-      <tr
-        key={staffId}
-        className={`border-b border-gray-100 transition-colors ${
-          isSubmitted ? 'bg-green-50/50' : 'bg-red-50/30'
-        }`}
-      >
-        <td className="p-3">
-          <div className="flex items-center gap-1.5">
-            {ts.fileUrl && (
-              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-            )}
+      <div key={staffId} className="row-animate grid items-center border-b border-d4l-border last:border-b-0 hover:bg-d4l-hover/30 transition-colors px-4 py-3"
+        style={{ gridTemplateColumns: '1fr 70px 70px 110px 100px 1fr' }}>
+        {/* Name + badges + file */}
+        <div>
+          <div className="flex items-center gap-2">
             {ts.fileUrl ? (
-              <a
-                href={ts.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-teal-600 hover:text-teal-800 underline text-sm"
-                title={`Open ${ts.fileName || 'timesheet'}`}
-              >
+              <a href={ts.fileUrl} target="_blank" rel="noopener noreferrer"
+                className="font-medium text-d4l-gold hover:underline text-sm truncate"
+                title={`Open ${ts.fileName || 'timesheet'}`}>
                 {info.name}
               </a>
             ) : (
-              <span className="font-medium text-gray-800 text-sm">{info.name}</span>
+              <span className="font-medium text-d4l-text text-sm">{info.name}</span>
+            )}
+            {ts.fileUrl && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-d4l-gold/10 text-d4l-gold border border-d4l-gold/20 shrink-0">
+                <Paperclip className="w-2.5 h-2.5" />
+                {(ts.fileName || 'file').slice(0, 12)}
+              </span>
             )}
             {uploadingStaff === staffId ? (
-              <Loader2 className="w-4 h-4 text-teal-500 animate-spin shrink-0" />
+              <Loader2 className="w-3.5 h-3.5 text-d4l-gold-dim animate-spin shrink-0" />
             ) : (
-              <button
-                onClick={() => handleUploadClick(staffId)}
-                className="p-0.5 rounded hover:bg-gray-100 transition-colors"
-                title={ts.fileUrl ? 'Replace file' : 'Upload timesheet'}
-                disabled={!!uploadingStaff}
-              >
-                <Upload className={`w-3.5 h-3.5 ${uploadingStaff ? 'text-gray-200' : 'text-gray-400 hover:text-teal-600'}`} />
+              <button onClick={() => handleUploadClick(staffId)} disabled={!!uploadingStaff}
+                className="p-1 rounded-lg hover:bg-d4l-gold/10 transition-colors shrink-0" title={ts.fileUrl ? 'Replace file' : 'Upload timesheet'}>
+                <Upload className={`w-3.5 h-3.5 ${uploadingStaff ? 'text-d4l-hover' : 'text-d4l-dim hover:text-d4l-gold'}`} />
               </button>
             )}
             {ts.fileUrl && (
-              <button
-                onClick={() => handleRemoveFile(staffId)}
-                className="p-0.5 rounded hover:bg-red-50 transition-colors"
-                title="Remove file"
-              >
-                <X className="w-3.5 h-3.5 text-gray-300 hover:text-red-500" />
+              <button onClick={() => handleRemoveFile(staffId)} className="p-1 rounded-lg hover:bg-red-500/10 transition-colors shrink-0" title="Remove file">
+                <X className="w-3.5 h-3.5 text-d4l-dim hover:text-red-400" />
               </button>
             )}
           </div>
-          <div className="flex gap-1.5 mt-0.5">
-            <span className={`text-xs px-1.5 py-0.5 rounded ${
-              info.role === 'nurse' ? 'bg-blue-50 text-blue-600'
-              : info.role === 'receptionist' ? 'bg-pink-50 text-pink-600'
-              : 'bg-green-50 text-green-600'
-            }`}>
+          <div className="flex gap-1.5 mt-1">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${info.role === 'nurse' ? 'bg-blue-500/10 text-blue-400' : info.role === 'receptionist' ? 'bg-pink-500/10 text-pink-400' : 'bg-green-500/10 text-green-400'}`}>
               {info.role}
             </span>
-            <span className={`text-xs px-1.5 py-0.5 rounded ${
-              info.employmentType === 'permanent' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-600'
-            }`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${info.employmentType === 'permanent' ? 'bg-green-500/10 text-green-400' : 'bg-d4l-raised text-d4l-dim'}`}>
               {info.employmentType}
             </span>
           </div>
           {uploadError?.staffId === staffId && (
-            <p className="text-xs text-red-500 mt-1">{uploadError.message}</p>
+            <p className="text-[10px] text-red-400 mt-1">{uploadError.message}</p>
           )}
-        </td>
-        <td className="p-3 text-center">
+        </div>
+
+        {/* Shifts */}
+        <div className="text-center">
           {isScheduleRole(info.role)
-            ? <span className="text-lg font-bold text-gray-800">{info.shifts}</span>
-            : <span className="text-sm text-gray-400">—</span>
-          }
-        </td>
-        <td className="p-3 text-center">
+            ? <span className="text-sm font-bold text-d4l-text">{info.shifts}</span>
+            : <span className="text-xs text-d4l-dim">—</span>}
+        </div>
+
+        {/* Hours */}
+        <div className="text-center">
           {isScheduleRole(info.role)
-            ? <span className="text-lg font-bold text-gray-800">{info.hours}h</span>
-            : <span className="text-sm text-gray-400">—</span>
-          }
-        </td>
-        <td className="p-3 text-center">
+            ? <span className="text-sm font-bold text-d4l-text">{info.hours}h</span>
+            : <span className="text-xs text-d4l-dim">—</span>}
+        </div>
+
+        {/* Status */}
+        <div className="text-center">
           {!staffFilter ? (
-            <button
-              onClick={() => toggleStatus(staffId)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            <button onClick={() => toggleStatus(staffId)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 isSubmitted
-                  ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200'
-                  : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
-              }`}
-            >
-              {isSubmitted ? 'Submitted' : 'Pending'}
+                  ? 'bg-green-500/15 text-green-400 border border-green-500/20 hover:bg-green-500/25'
+                  : 'bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25'
+              }`}>
+              {isSubmitted
+                ? <><CheckCircle2 className="w-3 h-3" />Submitted</>
+                : <><span className="w-1.5 h-1.5 rounded-full bg-red-400 pulse-dot" />Pending</>}
             </button>
           ) : (
-            <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-              isSubmitted
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : 'bg-red-100 text-red-700 border border-red-300'
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+              isSubmitted ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'
             }`}>
-              {isSubmitted ? 'Submitted' : 'Pending'}
+              {isSubmitted ? <><CheckCircle2 className="w-3 h-3" />Submitted</> : <><span className="w-1.5 h-1.5 rounded-full bg-red-400 pulse-dot" />Pending</>}
             </span>
           )}
-        </td>
-        <td className="p-3 text-center text-sm text-gray-500">
-          {ts.submittedDate || <span className="text-gray-300">&mdash;</span>}
-        </td>
-        <td className="p-3">
+        </div>
+
+        {/* Submitted date */}
+        <div className="text-center text-xs text-d4l-muted">
+          {ts.submittedDate || <span className="text-d4l-dim">—</span>}
+        </div>
+
+        {/* Notes */}
+        <div>
           <NotesInput
             value={ts.notes}
             onChange={notes => updateNotes(staffId, notes)}
             placeholder="Add note..."
-            className="w-full text-sm px-2 py-1 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+            className="w-full text-sm bg-transparent border-0 border-b border-d4l-border text-d4l-text placeholder:text-d4l-dim focus:border-d4l-gold focus:ring-0 outline-none py-1"
           />
-        </td>
-      </tr>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRoleGroup = (label, entries, color) => {
+    if (entries.length === 0) return null;
+    return (
+      <>
+        <div className={`px-4 py-2 border-l-[3px]`} style={{ borderLeftColor: color, background: `${color}08` }}>
+          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color, fontFamily: "'Bebas Neue', sans-serif" }}>
+            {label}
+          </span>
+        </div>
+        {entries.map(renderStaffRow)}
+      </>
     );
   };
 
   return (
     <div className="p-6 max-w-full mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+
+      {/* ===== HEADER ===== */}
+      <div className="flex items-center justify-between mb-8 section-animate">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">{staffFilter ? 'My Timesheet' : 'Timesheets'}</h1>
-          <p className="text-gray-500 text-sm">Track pay cycle timesheet submissions</p>
+          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+            {staffFilter ? 'My Timesheet' : 'Timesheets'}
+          </h1>
+          <p className="text-d4l-muted text-sm mt-0.5">Track pay cycle timesheet submissions</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={goToPrevCycle} className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
+          <button onClick={goToPrevCycle} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button
-            onClick={goToCurrentCycle}
-            className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
-          >
+          <button onClick={goToCurrentCycle} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             This Cycle
           </button>
-          <span className="text-sm font-semibold text-gray-700 min-w-[220px] text-center">
+          <span className="text-sm font-medium text-d4l-text2 min-w-[220px] text-center">
             {cycleRange.label}
           </span>
-          <button onClick={goToNextCycle} className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
+          <button onClick={goToNextCycle} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* ===== STAT CARDS ===== */}
       {!staffFilter && (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="w-5 h-5 text-blue-600" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          {[
+            { color: 'blue', icon: Users, label: 'Total Staff', value: totalStaff, sub: 'in this cycle', textColor: 'text-d4l-text' },
+            { color: 'green', icon: CheckCircle2, label: 'Submitted', value: submittedCount, sub: `${totalStaff > 0 ? Math.round(submittedCount / totalStaff * 100) : 0}% complete`, textColor: 'text-green-400' },
+            { color: 'red', icon: Clock, label: 'Pending', value: pendingCount, sub: 'awaiting submission', textColor: 'text-red-400' },
+            { color: 'amber', icon: Paperclip, label: 'Files Uploaded', value: filesUploadedCount, sub: 'timesheets attached', textColor: 'text-d4l-gold' },
+          ].map(({ color, icon: Icon, label, value, sub, textColor }) => (
+            <div key={label} className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
+              <div className={`h-[2px] bg-gradient-to-r ${gradients[color]}`} />
+              <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
+                style={{ background: `radial-gradient(circle at top right, ${glows[color]}, transparent 70%)` }} />
+              <div className="p-5 relative">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>
+                    <p className={`text-4xl font-bold tracking-wide count-animate mt-1 ${textColor}`} style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                      {value}
+                    </p>
+                  </div>
+                  <div className={`p-3 rounded-xl bg-${color === 'amber' ? 'amber' : color}-500/10`}>
+                    <Icon className={`w-6 h-6 text-${color === 'amber' ? 'amber' : color}-400`} />
+                  </div>
+                </div>
+                <p className="text-[11px] text-d4l-dim mt-2">{sub}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Staff</p>
-              <p className="text-2xl font-bold text-gray-800">{totalStaff}</p>
-            </div>
-          </div>
+          ))}
         </div>
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Submitted</p>
-              <p className="text-2xl font-bold text-green-600">{submittedCount}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <Clock className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Pending</p>
-              <p className="text-2xl font-bold text-red-600">{pendingCount}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-100 rounded-lg">
-              <Paperclip className="w-5 h-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Files Uploaded</p>
-              <p className="text-2xl font-bold text-teal-600">{filesUploadedCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
       )}
 
-      {/* Staff Table */}
+      {/* ===== STAFF GRID ===== */}
       {totalStaff === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border text-center py-16">
-          <FileCheck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p className="text-sm text-gray-400">No staff scheduled in this pay cycle.</p>
-          <p className="text-xs text-gray-300 mt-1">Schedule shifts in the Weekly Schedule to see staff here.</p>
+        <div className="section-animate bg-d4l-surface rounded-xl border border-d4l-border text-center py-16">
+          <FileCheck className="w-12 h-12 mx-auto mb-3 text-d4l-dim" />
+          <p className="text-sm text-d4l-dim">No staff scheduled in this pay cycle.</p>
+          <p className="text-xs text-d4l-dim mt-1">Schedule shifts in the Weekly Schedule to see staff here.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="text-left p-3 text-sm font-semibold text-gray-600 w-48">Staff Member</th>
-                  <th className="text-center p-3 text-sm font-semibold text-gray-600 w-24">Shifts</th>
-                  <th className="text-center p-3 text-sm font-semibold text-gray-600 w-24">Hours</th>
-                  <th className="text-center p-3 text-sm font-semibold text-gray-600 w-32">Status</th>
-                  <th className="text-center p-3 text-sm font-semibold text-gray-600 w-32">Submitted</th>
-                  <th className="text-left p-3 text-sm font-semibold text-gray-600">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {nurses.length > 0 && (
-                  <>
-                    <tr>
-                      <td colSpan={6} className="bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 uppercase tracking-wide">
-                        Nurses
-                      </td>
-                    </tr>
-                    {nurses.map(renderStaffRow)}
-                  </>
-                )}
-                {receptionists.length > 0 && (
-                  <>
-                    <tr>
-                      <td colSpan={6} className="bg-pink-50 px-3 py-1.5 text-xs font-semibold text-pink-700 uppercase tracking-wide">
-                        Receptionists
-                      </td>
-                    </tr>
-                    {receptionists.map(renderStaffRow)}
-                  </>
-                )}
-                {support.length > 0 && (
-                  <>
-                    <tr>
-                      <td colSpan={6} className="bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 uppercase tracking-wide">
-                        Support Staff
-                      </td>
-                    </tr>
-                    {support.map(renderStaffRow)}
-                  </>
-                )}
-              </tbody>
-            </table>
+        <div className="section-animate section-animate-delay-1 bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+          {/* Header row */}
+          <div className="grid items-center bg-d4l-bg border-b border-d4l-border px-4 py-2.5"
+            style={{ gridTemplateColumns: '1fr 70px 70px 110px 100px 1fr' }}>
+            <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium">Staff Member</span>
+            <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium text-center">Shifts</span>
+            <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium text-center">Hours</span>
+            <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium text-center">Status</span>
+            <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium text-center">Submitted</span>
+            <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium">Notes</span>
           </div>
+
+          {/* Role groups */}
+          {renderRoleGroup('Nurses', nurses, '#3b82f6')}
+          {renderRoleGroup('Receptionists', receptionists, '#ec4899')}
+          {renderRoleGroup('Support Staff', support, '#22c55e')}
         </div>
       )}
 
-      {/* Hidden file input shared across all rows */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
-        onChange={handleFileSelected}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={handleFileSelected} className="hidden" />
     </div>
   );
 }

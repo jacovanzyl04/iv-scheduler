@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { auth, signInWithEmailAndPassword } from '../utils/firebase';
-import { Droplets, LogIn, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 function mapFirebaseError(code) {
   switch (code) {
@@ -34,84 +34,129 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-600 via-teal-700 to-teal-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo / Branding */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl mb-4">
-            <Droplets className="w-9 h-9 text-teal-200" />
-          </div>
-          <h1 className="text-3xl font-bold text-white">IV Scheduler</h1>
-          <p className="text-teal-200 mt-1">Drip4Life Staff Management</p>
+    <div className="login-page">
+      {/* ---- Left Visual Panel ---- */}
+      <div className="login-visual">
+        {/* Ambient blobs */}
+        <div className="login-blob login-blob-1" />
+        <div className="login-blob login-blob-2" />
+        <div className="login-blob login-blob-3" />
+
+        {/* IV drip lines */}
+        <div className="login-drip-line login-drip-line-1">
+          <div className="login-drip-drop" style={{ '--drip-speed': '3.8s', '--drip-delay': '0s' }} />
+        </div>
+        <div className="login-drip-line login-drip-line-2">
+          <div className="login-drip-drop" style={{ '--drip-speed': '4.5s', '--drip-delay': '1.2s' }} />
+        </div>
+        <div className="login-drip-line login-drip-line-3">
+          <div className="login-drip-drop" style={{ '--drip-speed': '3s', '--drip-delay': '2.4s' }} />
         </div>
 
-        {/* Login Card */}
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-1">Welcome back</h2>
-          <p className="text-sm text-gray-500 mb-6">Sign in to your account</p>
+        {/* Brand */}
+        <div className="login-brand">
+          <div className="login-brand-icon">
+            <svg viewBox="0 0 56 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* IV bag */}
+              <rect x="14" y="16" width="28" height="34" rx="4" fill="url(#loginBagGrad)" stroke="rgba(232,232,0,0.2)" strokeWidth="1" />
+              {/* Bag hook */}
+              <path d="M24 16V8C24 6 25 5 27 5H29C31 5 32 6 32 8V16" stroke="rgba(232,232,0,0.35)" strokeWidth="1.5" fill="none" />
+              <circle cx="28" cy="3" r="2" fill="none" stroke="rgba(232,232,0,0.35)" strokeWidth="1" />
+              {/* Fluid level */}
+              <rect x="17" y="26" width="22" height="20" rx="2" fill="rgba(232,232,0,0.1)" />
+              {/* Fluid line */}
+              <line x1="28" y1="50" x2="28" y2="66" stroke="rgba(232,232,0,0.3)" strokeWidth="1.5" />
+              {/* Drip at bottom */}
+              <ellipse cx="28" cy="68" rx="3" ry="3.5" fill="url(#loginDropGrad)" />
+              <defs>
+                <linearGradient id="loginBagGrad" x1="14" y1="16" x2="42" y2="50" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="rgba(232,232,0,0.15)" />
+                  <stop offset="100%" stopColor="rgba(200,168,0,0.08)" />
+                </linearGradient>
+                <linearGradient id="loginDropGrad" x1="25" y1="64" x2="31" y2="72" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#e8e800" />
+                  <stop offset="100%" stopColor="#c8a800" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h1 className="login-brand-name">DRIP4LIFE</h1>
+          <p className="login-brand-tagline">All Your Body Needs</p>
+        </div>
+      </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
-                placeholder="you@drip4life.co.za"
-                required
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow pr-11"
-                  placeholder="Enter your password"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
+      {/* ---- Right Form Panel ---- */}
+      <div className="login-form-panel">
+        <div className="login-form-container">
+          <div className="login-form-header">
+            <h2>Welcome Back</h2>
+            <p>Sign in to manage your schedules</p>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white font-medium rounded-xl hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <LogIn className="w-5 h-5" />
-                Sign In
-              </>
-            )}
-          </button>
-        </form>
+          <div className="login-divider" />
 
-        <p className="text-center text-teal-300 text-xs mt-6">
-          Contact your admin if you need an account
-        </p>
+          {error && (
+            <div className="login-error">{error}</div>
+          )}
+
+          <form onSubmit={handleLogin}>
+            <div className="login-form-item" style={{ animationDelay: '0.55s' }}>
+              <div className="login-field">
+                <label htmlFor="login-email">Email</label>
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@drip4life.co.za"
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="login-form-item" style={{ animationDelay: '0.65s' }}>
+              <div className="login-field">
+                <label htmlFor="login-password">Password</label>
+                <div className="login-password-wrap">
+                  <input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="login-password-toggle"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="login-form-item" style={{ animationDelay: '0.75s' }}>
+              <button type="submit" disabled={loading} className="login-submit">
+                {loading ? (
+                  <Loader2 size={20} className="login-spinner" />
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </div>
+          </form>
+
+          <div className="login-form-item" style={{ animationDelay: '0.85s' }}>
+            <p className="login-footer">
+              Contact your admin if you need an account
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
