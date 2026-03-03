@@ -38,7 +38,7 @@ function NotesInput({ value, onChange, placeholder, className }) {
   );
 }
 
-export default function TimesheetTracker({ staff, schedules, timesheets, setTimesheets }) {
+export default function TimesheetTracker({ staff, schedules, timesheets, setTimesheets, staffFilter }) {
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
   const [uploadingStaff, setUploadingStaff] = useState(null);
   const [uploadError, setUploadError] = useState(null);
@@ -67,15 +67,16 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
 
   // Summary counts
   const staffEntries = Object.entries(allStaff);
-  const totalStaff = staffEntries.length;
-  const submittedCount = staffEntries.filter(([id]) => cycleTimesheets[id]?.status === 'submitted').length;
+  const filteredEntries = staffFilter ? staffEntries.filter(([id]) => id === staffFilter) : staffEntries;
+  const totalStaff = filteredEntries.length;
+  const submittedCount = filteredEntries.filter(([id]) => cycleTimesheets[id]?.status === 'submitted').length;
   const pendingCount = totalStaff - submittedCount;
-  const filesUploadedCount = staffEntries.filter(([id]) => cycleTimesheets[id]?.fileUrl).length;
+  const filesUploadedCount = filteredEntries.filter(([id]) => cycleTimesheets[id]?.fileUrl).length;
 
   // Split by role
-  const nurses = staffEntries.filter(([, info]) => info.role === 'nurse').sort((a, b) => a[1].name.localeCompare(b[1].name));
-  const receptionists = staffEntries.filter(([, info]) => info.role === 'receptionist').sort((a, b) => a[1].name.localeCompare(b[1].name));
-  const support = staffEntries.filter(([, info]) => !isScheduleRole(info.role)).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const nurses = filteredEntries.filter(([, info]) => info.role === 'nurse').sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const receptionists = filteredEntries.filter(([, info]) => info.role === 'receptionist').sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const support = filteredEntries.filter(([, info]) => !isScheduleRole(info.role)).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
   const toggleStatus = (staffId) => {
     setTimesheets(prev => {
@@ -256,16 +257,26 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           }
         </td>
         <td className="p-3 text-center">
-          <button
-            onClick={() => toggleStatus(staffId)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          {!staffFilter ? (
+            <button
+              onClick={() => toggleStatus(staffId)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                isSubmitted
+                  ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200'
+                  : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
+              }`}
+            >
+              {isSubmitted ? 'Submitted' : 'Pending'}
+            </button>
+          ) : (
+            <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
               isSubmitted
-                ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-green-200'
-                : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
-            }`}
-          >
-            {isSubmitted ? 'Submitted' : 'Pending'}
-          </button>
+                ? 'bg-green-100 text-green-700 border border-green-300'
+                : 'bg-red-100 text-red-700 border border-red-300'
+            }`}>
+              {isSubmitted ? 'Submitted' : 'Pending'}
+            </span>
+          )}
         </td>
         <td className="p-3 text-center text-sm text-gray-500">
           {ts.submittedDate || <span className="text-gray-300">&mdash;</span>}
@@ -287,7 +298,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Timesheets</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{staffFilter ? 'My Timesheet' : 'Timesheets'}</h1>
           <p className="text-gray-500 text-sm">Track pay cycle timesheet submissions</p>
         </div>
         <div className="flex items-center gap-2">
@@ -310,6 +321,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       </div>
 
       {/* Summary Cards */}
+      {!staffFilter && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border p-5">
           <div className="flex items-center gap-3">
@@ -356,6 +368,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           </div>
         </div>
       </div>
+      )}
 
       {/* Staff Table */}
       {totalStaff === 0 ? (

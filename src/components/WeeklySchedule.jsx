@@ -80,7 +80,8 @@ function hasStaffTimeConflict(staffId, day, proposedStart, proposedEnd, schedule
 
 export default function WeeklySchedule({
   staff, schedule, setSchedule, weekStartDate, currentWeekStart,
-  availability, shiftRequests, goToPrevWeek, goToNextWeek, goToToday
+  availability, shiftRequests, goToPrevWeek, goToNextWeek, goToToday,
+  readOnly
 }) {
   const [assignModal, setAssignModal] = useState(null); // { day, branchId, role }
   const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember, slots }
@@ -427,19 +428,20 @@ export default function WeeklySchedule({
     return (
     <div
       key={n.id}
-      draggable={!n.locked}
+      draggable={!readOnly && !n.locked}
       onDragStart={(e) => handleDragStart(e, n.id, n.name, 'nurse', day, branchId)}
       onDragEnd={handleDragEnd}
-      className={`group relative nurse-badge pr-1 ${!n.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+      className={`group relative nurse-badge pr-1 ${!readOnly && !n.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
       style={colorStyle(staffColor)}
     >
-      {!n.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
+      {!readOnly && !n.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
       <Stethoscope className="w-3 h-3 shrink-0 text-blue-500" />
       <span className="flex-1 truncate text-center">
         {n.name}
         {timeRange && <span className="text-[10px] text-gray-500 ml-0.5">({timeRange})</span>}
       </span>
       {n.locked && <Lock className="w-3 h-3 shrink-0 opacity-40" />}
+      {!readOnly && (
       <div className="hidden group-hover:flex items-center gap-0.5 absolute right-0 top-0 bottom-0 bg-blue-100 rounded-r-full pl-1 pr-1">
         <button
           onClick={() => toggleLock(day, branchId, 'nurse', n.id)}
@@ -456,6 +458,7 @@ export default function WeeklySchedule({
           <X className="w-3 h-3" />
         </button>
       </div>
+      )}
     </div>
   ); };
 
@@ -464,16 +467,17 @@ export default function WeeklySchedule({
     return (
     <div
       key={r.id}
-      draggable={!r.locked}
+      draggable={!readOnly && !r.locked}
       onDragStart={(e) => handleDragStart(e, r.id, r.name, 'receptionist', day, branchId)}
       onDragEnd={handleDragEnd}
-      className={`group relative receptionist-badge pr-1 ${!r.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+      className={`group relative receptionist-badge pr-1 ${!readOnly && !r.locked ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
       style={colorStyle(staffColor)}
     >
-      {!r.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
+      {!readOnly && !r.locked && <GripVertical className="w-3 h-3 shrink-0 opacity-30 group-hover:opacity-60" />}
       <Headphones className="w-3 h-3 shrink-0 text-pink-500" />
       <span className="flex-1 truncate text-center">{r.name}</span>
       {r.locked && <Lock className="w-3 h-3 shrink-0 opacity-40" />}
+      {!readOnly && (
       <div className="hidden group-hover:flex items-center gap-0.5 absolute right-0 top-0 bottom-0 bg-pink-100 rounded-r-full pl-1 pr-1">
         <button
           onClick={() => toggleLock(day, branchId, 'receptionist', r.id)}
@@ -490,6 +494,7 @@ export default function WeeklySchedule({
           <X className="w-3 h-3" />
         </button>
       </div>
+      )}
     </div>
   ); };
 
@@ -498,8 +503,8 @@ export default function WeeklySchedule({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Weekly Schedule</h1>
-          <p className="text-gray-500 text-sm">Drag staff between cells or click + to assign</p>
+          <h1 className="text-2xl font-bold text-gray-800">{readOnly ? 'Full Schedule' : 'Weekly Schedule'}</h1>
+          <p className="text-gray-500 text-sm">{readOnly ? "View the team's weekly assignments" : 'Drag staff between cells or click + to assign'}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -517,6 +522,7 @@ export default function WeeklySchedule({
           </button>
         </div>
 
+        {!readOnly && (
         <div className="flex items-center gap-2">
           <button
             onClick={handleAutoSchedule}
@@ -558,6 +564,7 @@ export default function WeeklySchedule({
             {errors.length + warnings.length} Issues
           </button>
         </div>
+        )}
       </div>
 
       {/* Validation panel */}
@@ -636,7 +643,7 @@ export default function WeeklySchedule({
                       >
                         <div className="space-y-1">
                           {nurses.map(n => renderNurseBadge(n, day, branch.id))}
-                          {needsMore && !dragging && (
+                          {!readOnly && needsMore && !dragging && (
                             <button
                               onClick={() => setAssignModal({ day, branchId: branch.id, role: 'nurse' })}
                               className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded p-1 transition-colors"
@@ -689,7 +696,7 @@ export default function WeeklySchedule({
                           {receptionists.length === 0 && hasAloneNurse && !dragging && (
                             <div className="text-xs text-gray-400 italic text-center">Nurse alone</div>
                           )}
-                          {receptionists.length === 0 && !dragging && (
+                          {!readOnly && receptionists.length === 0 && !dragging && (
                             <button
                               onClick={() => setAssignModal({ day, branchId: branch.id, role: 'receptionist' })}
                               className="w-full flex items-center justify-center gap-1 text-xs text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded p-1 transition-colors"
@@ -723,7 +730,7 @@ export default function WeeklySchedule({
             ))}
 
             {/* Unassigned Staff Pool Row */}
-            <tr className="border-t-2 border-teal-200">
+            {!readOnly && <tr className="border-t-2 border-teal-200">
               <td className="p-2 text-sm bg-teal-50 font-medium text-teal-700 align-top" style={{ borderLeft: '4px solid #14b8a6' }}>
                 Unassigned
                 <div className="text-xs font-normal text-teal-500">Drag to schedule</div>
@@ -777,13 +784,13 @@ export default function WeeklySchedule({
                   </td>
                 );
               })}
-            </tr>
+            </tr>}
           </tbody>
         </table>
       </div>
 
       {/* Weekly hours summary */}
-      <div className="mt-6 bg-white rounded-xl shadow-sm border p-4">
+      {!readOnly && <div className="mt-6 bg-white rounded-xl shadow-sm border p-4">
         <h3 className="font-semibold text-gray-700 mb-3">Staff Hours This Week</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {staff.map(member => {
@@ -797,7 +804,7 @@ export default function WeeklySchedule({
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Assignment Modal (staff list) */}
       {assignModal && (

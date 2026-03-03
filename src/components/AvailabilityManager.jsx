@@ -28,9 +28,13 @@ function getLocalDayOfMonth(weekStart, dayIndex) {
 
 export default function AvailabilityManager({
   staff, availability, setAvailability, shiftRequests, setShiftRequests,
-  currentWeekStart, weekKey, goToPrevWeek, goToNextWeek, goToToday
+  currentWeekStart, weekKey, goToPrevWeek, goToNextWeek, goToToday,
+  staffFilter
 }) {
   const [activeTab, setActiveTab] = useState('leave'); // 'leave' or 'requests'
+
+  // When staffFilter is set, force the Leave tab (hide Shift Requests)
+  const effectiveTab = staffFilter ? 'leave' : activeTab;
   const [selectedStaff, setSelectedStaff] = useState(null);
 
   const toggleLeave = (staffId, dateStr) => {
@@ -59,15 +63,16 @@ export default function AvailabilityManager({
     });
   };
 
-  const priorityStaff = staff.filter(s => s.priority);
-  const nurses = staff.filter(s => s.role === 'nurse');
-  const receptionists = staff.filter(s => s.role === 'receptionist');
+  const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff;
+  const priorityStaff = visibleStaff.filter(s => s.priority);
+  const nurses = visibleStaff.filter(s => s.role === 'nurse');
+  const receptionists = visibleStaff.filter(s => s.role === 'receptionist');
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Availability & Requests</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{staffFilter ? 'My Availability' : 'Availability & Requests'}</h1>
           <p className="text-gray-500 text-sm">Mark leave days and shift requests for the week</p>
         </div>
         <div className="flex items-center gap-2">
@@ -91,24 +96,26 @@ export default function AvailabilityManager({
         <button
           onClick={() => setActiveTab('leave')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeTab === 'leave' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            effectiveTab === 'leave' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
           <CalendarOff className="w-4 h-4" />
           Leave / Unavailable
         </button>
-        <button
-          onClick={() => setActiveTab('requests')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeTab === 'requests' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          <CalendarCheck className="w-4 h-4" />
-          Shift Requests (Priority Staff)
-        </button>
+        {!staffFilter && (
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              effectiveTab === 'requests' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4" />
+            Shift Requests (Priority Staff)
+          </button>
+        )}
       </div>
 
-      {activeTab === 'leave' && (
+      {effectiveTab === 'leave' && (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -216,7 +223,7 @@ export default function AvailabilityManager({
         </div>
       )}
 
-      {activeTab === 'requests' && (
+      {effectiveTab === 'requests' && (
         <div>
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
             <p className="text-sm text-amber-800">

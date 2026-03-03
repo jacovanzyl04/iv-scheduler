@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, onValue } from 'firebase/database';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,10 +17,13 @@ const isConfigured = !!firebaseConfig.apiKey && !!firebaseConfig.databaseURL;
 
 let app = null;
 let db = null;
+let auth = null;
 
 if (isConfigured) {
   app = initializeApp(firebaseConfig);
   db = getDatabase(app);
+  auth = getAuth(app);
 }
 
-export { db, ref, set, onValue, isConfigured };
+export { app, db, ref, set, onValue, auth, isConfigured };
+export { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail };

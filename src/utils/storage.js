@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   AVAILABILITY: 'iv-scheduler-availability',
   SHIFT_REQUESTS: 'iv-scheduler-shift-requests',
   TIMESHEETS: 'iv-scheduler-timesheets',
+  USERS: 'iv-scheduler-users',
 };
 
 // Firebase path mapping
@@ -17,6 +18,7 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.AVAILABILITY]: 'availability',
   [STORAGE_KEYS.SHIFT_REQUESTS]: 'shiftRequests',
   [STORAGE_KEYS.TIMESHEETS]: 'timesheets',
+  [STORAGE_KEYS.USERS]: 'users',
 };
 
 export function loadFromStorage(key, defaultValue) {
