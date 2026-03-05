@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BRANCHES, DAYS_OF_WEEK } from '../data/initialData';
 import { CalendarOff, CalendarCheck, ChevronLeft, ChevronRight, Star, Info, Users } from 'lucide-react';
+import { useIsMobile } from './Sidebar';
 
 function formatWeekRange(weekStart) {
   const start = new Date(weekStart);
@@ -37,9 +38,14 @@ export default function AvailabilityManager({
   currentWeekStart, weekKey, goToPrevWeek, goToNextWeek, goToToday,
   staffFilter
 }) {
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('leave');
   const effectiveTab = staffFilter ? 'leave' : activeTab;
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = new Date().getDay();
+    return today === 0 ? 6 : today - 1;
+  });
 
   const toggleLeave = (staffId, dateStr) => {
     setAvailability(prev => {
@@ -150,12 +156,12 @@ export default function AvailabilityManager({
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
 
       {/* ===== HEADER ===== */}
-      <div className="flex items-center justify-between mb-6 section-animate">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 section-animate">
         <div>
-          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             {staffFilter ? 'My Availability' : 'Availability & Requests'}
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Mark leave days and shift requests for the week</p>
@@ -165,10 +171,10 @@ export default function AvailabilityManager({
           <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-text2">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <button onClick={goToToday} className="px-3 py-1.5 text-xs bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+          <button onClick={goToToday} className="px-2 md:px-3 py-1.5 text-xs bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             This Week
           </button>
-          <span className="text-xs font-medium text-d4l-text2 min-w-[160px] text-center px-2">
+          <span className="text-xs font-medium text-d4l-text2 min-w-[130px] md:min-w-[160px] text-center px-1 md:px-2">
             {formatWeekRange(currentWeekStart)}
           </span>
           <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-text2">
@@ -274,67 +280,121 @@ export default function AvailabilityManager({
 
       {/* ===== LEAVE GRID ===== */}
       {effectiveTab === 'leave' && (
-        <div className="tab-content bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow section-animate section-animate-delay-2">
-          <div className="overflow-x-auto">
-            <div
-              className="min-w-[700px]"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '180px repeat(7, 1fr)',
-              }}
-            >
-              {/* Header */}
-              <div className="bg-d4l-bg/80 px-3 py-3 border-b border-d4l-border">
-                <span className="text-xs font-semibold text-d4l-dim uppercase tracking-wider">Staff</span>
-              </div>
+        isMobile ? (
+          /* --- MOBILE: Day-by-day card view --- */
+          <div className="tab-content section-animate section-animate-delay-2">
+            {/* Day selector tabs */}
+            <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
               {DAYS_OF_WEEK.map((day, i) => {
                 const today = isToday(currentWeekStart, i);
+                const leaveCount = visibleStaff.filter(m => {
+                  const dateStr = getDateForDay(currentWeekStart, i);
+                  return availability[m.id]?.includes(dateStr);
+                }).length;
                 return (
-                  <div key={day} className={`bg-d4l-bg/80 text-center py-2.5 border-b border-d4l-border ${today ? 'border-b-2 border-b-d4l-gold' : ''}`}>
-                    <div className={`text-xs font-semibold ${today ? 'text-d4l-gold' : 'text-d4l-text2'}`}>{day.slice(0, 3)}</div>
-                    <div className={`text-[10px] mt-0.5 ${today ? 'text-d4l-gold/70' : 'text-d4l-dim'}`}>
-                      {getLocalDayOfMonth(currentWeekStart, i)}
-                    </div>
-                  </div>
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDay(i)}
+                    className={`flex flex-col items-center min-w-[46px] py-2 px-1 rounded-xl text-xs font-medium transition-all ${
+                      selectedDay === i
+                        ? 'bg-d4l-gold text-black'
+                        : today
+                          ? 'bg-d4l-gold/15 text-d4l-gold'
+                          : 'bg-d4l-surface border border-d4l-border text-d4l-text2'
+                    }`}
+                  >
+                    <span className="text-[10px]">{day.slice(0, 3)}</span>
+                    <span className="text-base font-bold">{getLocalDayOfMonth(currentWeekStart, i)}</span>
+                    {leaveCount > 0 && selectedDay !== i && <span className="w-1.5 h-1.5 rounded-full bg-red-400 mt-0.5" />}
+                  </button>
                 );
               })}
+            </div>
 
-              {/* Nurses section header */}
-              <div className="col-span-8 px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-blue-500 flex items-center gap-2">
+            {/* Staff list for selected day */}
+            <div className="bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+              <div className={`px-4 py-3 border-b border-d4l-border ${isToday(currentWeekStart, selectedDay) ? 'bg-d4l-gold/10' : 'bg-d4l-bg'}`}>
+                <span className={`text-sm font-semibold ${isToday(currentWeekStart, selectedDay) ? 'text-d4l-gold' : 'text-d4l-text'}`}>
+                  {DAYS_OF_WEEK[selectedDay]} {getLocalDayOfMonth(currentWeekStart, selectedDay)}
+                </span>
+              </div>
+
+              {/* Nurses */}
+              <div className="px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-blue-500 flex items-center gap-2">
                 <span className="text-xs font-bold text-blue-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   Nurses
                 </span>
                 <span className="text-[10px] text-blue-400/60">({nurses.length})</span>
               </div>
+              {nurses.map(member => {
+                const dateStr = getDateForDay(currentWeekStart, selectedDay);
+                const isOff = availability[member.id]?.includes(dateStr);
+                const dayRestricted = member.availableDays && !member.availableDays.includes(DAYS_OF_WEEK[selectedDay]);
+                return (
+                  <div key={member.id} className="flex items-center justify-between px-4 py-3 border-b border-d4l-border/50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-d4l-text text-sm truncate">{member.name}</span>
+                      {member.priority && <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />}
+                      <span className="text-[10px] text-d4l-dim">{member.employmentType}</span>
+                    </div>
+                    {dayRestricted ? (
+                      <span className="text-[10px] text-d4l-dim/40 px-3">N/A</span>
+                    ) : (
+                      <button
+                        onClick={() => toggleLeave(member.id, dateStr)}
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all min-w-[80px] ${
+                          isOff
+                            ? 'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25'
+                            : 'bg-green-500/10 text-green-500 ring-1 ring-inset ring-green-500/25'
+                        }`}
+                      >
+                        {isOff ? 'OFF' : 'Available'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
 
-              {nurses.map(member => renderStaffRow(member))}
-
-              {/* Receptionists section header */}
-              <div className="col-span-8 px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-pink-500 flex items-center gap-2">
+              {/* Receptionists */}
+              <div className="px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-pink-500 flex items-center gap-2">
                 <span className="text-xs font-bold text-pink-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   Receptionists
                 </span>
                 <span className="text-[10px] text-pink-400/60">({receptionists.length})</span>
               </div>
-
-              {receptionists.map(member => renderStaffRow(member))}
+              {receptionists.map(member => {
+                const dateStr = getDateForDay(currentWeekStart, selectedDay);
+                const isOff = availability[member.id]?.includes(dateStr);
+                const dayRestricted = member.availableDays && !member.availableDays.includes(DAYS_OF_WEEK[selectedDay]);
+                return (
+                  <div key={member.id} className="flex items-center justify-between px-4 py-3 border-b border-d4l-border/50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-d4l-text text-sm truncate">{member.name}</span>
+                      {member.priority && <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />}
+                      <span className="text-[10px] text-d4l-dim">{member.employmentType}</span>
+                    </div>
+                    {dayRestricted ? (
+                      <span className="text-[10px] text-d4l-dim/40 px-3">N/A</span>
+                    ) : (
+                      <button
+                        onClick={() => toggleLeave(member.id, dateStr)}
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all min-w-[80px] ${
+                          isOff
+                            ? 'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25'
+                            : 'bg-green-500/10 text-green-500 ring-1 ring-inset ring-green-500/25'
+                        }`}
+                      >
+                        {isOff ? 'OFF' : 'Available'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ===== SHIFT REQUESTS ===== */}
-      {effectiveTab === 'requests' && (
-        <div className="tab-content">
-          {/* Info banner */}
-          <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/15 rounded-xl px-4 py-3 mb-4 animate-fade-in">
-            <Info className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-400/80 leading-relaxed">
-              <strong className="text-amber-400">Priority staff</strong> get all shifts they request. Select which branch they want to work at for each day.
-            </p>
-          </div>
-
-          <div className="bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+        ) : (
+          /* --- DESKTOP: Original grid layout --- */
+          <div className="tab-content bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow section-animate section-animate-delay-2">
             <div className="overflow-x-auto">
               <div
                 className="min-w-[700px]"
@@ -359,62 +419,203 @@ export default function AvailabilityManager({
                   );
                 })}
 
-                {/* Priority staff rows */}
-                {priorityStaff.map(member => (
-                  <div key={member.id} className="contents">
-                    {/* Name */}
-                    <div className="flex items-center gap-2 px-3 py-2.5 bg-d4l-surface border-b border-d4l-border/50 animate-fade-in">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-d4l-text text-sm truncate">{member.name}</span>
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
-                        </div>
-                        <span className="text-[10px] text-d4l-dim">{member.role}</span>
-                      </div>
-                    </div>
+                {/* Nurses section header */}
+                <div className="col-span-8 px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-blue-500 flex items-center gap-2">
+                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                    Nurses
+                  </span>
+                  <span className="text-[10px] text-blue-400/60">({nurses.length})</span>
+                </div>
 
-                    {/* Day selects */}
-                    {DAYS_OF_WEEK.map((day, i) => {
-                      const currentRequest = shiftRequests[member.id]?.[day];
-                      const dayRestricted = member.availableDays && !member.availableDays.includes(day);
-                      const today = isToday(currentWeekStart, i);
+                {nurses.map(member => renderStaffRow(member))}
 
-                      return (
-                        <div key={day} className={`flex items-center p-1.5 border-b border-d4l-border/50 ${today ? 'bg-d4l-gold/[0.03]' : ''}`}>
-                          {dayRestricted ? (
-                            <div className="w-full text-center text-[10px] text-d4l-dim/40">-</div>
-                          ) : (
-                            <select
-                              value={currentRequest || ''}
-                              onChange={e => setShiftRequest(member.id, day, e.target.value || null)}
-                              className={`w-full text-xs p-2 rounded-lg outline-none transition-colors ${
-                                currentRequest
-                                  ? 'bg-d4l-raised border border-d4l-hover text-d4l-text font-medium'
-                                  : 'bg-transparent border border-d4l-border/50 text-d4l-dim hover:border-d4l-border'
-                              } focus:ring-1 focus:ring-d4l-gold/40`}
-                            >
-                              <option value="">-</option>
-                              {BRANCHES.filter(b => member.branches.includes(b.id)).map(branch => (
-                                <option key={branch.id} value={branch.id}>
-                                  {branch.name}{branch.id === member.mainBranch ? ' \u2605' : ''}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                {/* Receptionists section header */}
+                <div className="col-span-8 px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-pink-500 flex items-center gap-2">
+                  <span className="text-xs font-bold text-pink-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                    Receptionists
+                  </span>
+                  <span className="text-[10px] text-pink-400/60">({receptionists.length})</span>
+                </div>
 
-                {priorityStaff.length === 0 && (
-                  <div className="col-span-8 text-center py-12 text-d4l-dim text-sm">
-                    No priority staff members. Mark staff as priority in the Staff page.
-                  </div>
-                )}
+                {receptionists.map(member => renderStaffRow(member))}
               </div>
             </div>
           </div>
+        )
+      )}
+
+      {/* ===== SHIFT REQUESTS ===== */}
+      {effectiveTab === 'requests' && (
+        <div className="tab-content">
+          {/* Info banner */}
+          <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/15 rounded-xl px-4 py-3 mb-4 animate-fade-in">
+            <Info className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-400/80 leading-relaxed">
+              <strong className="text-amber-400">Priority staff</strong> get all shifts they request. Select which branch they want to work at for each day.
+            </p>
+          </div>
+
+          {isMobile ? (
+            /* --- MOBILE: Day-by-day card view for shift requests --- */
+            <div>
+              {/* Day selector tabs */}
+              <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
+                {DAYS_OF_WEEK.map((day, i) => {
+                  const today = isToday(currentWeekStart, i);
+                  const requestCount = priorityStaff.filter(m => shiftRequests[m.id]?.[day]).length;
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDay(i)}
+                      className={`flex flex-col items-center min-w-[46px] py-2 px-1 rounded-xl text-xs font-medium transition-all ${
+                        selectedDay === i
+                          ? 'bg-d4l-gold text-black'
+                          : today
+                            ? 'bg-d4l-gold/15 text-d4l-gold'
+                            : 'bg-d4l-surface border border-d4l-border text-d4l-text2'
+                      }`}
+                    >
+                      <span className="text-[10px]">{day.slice(0, 3)}</span>
+                      <span className="text-base font-bold">{getLocalDayOfMonth(currentWeekStart, i)}</span>
+                      {requestCount > 0 && selectedDay !== i && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-0.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+                <div className={`px-4 py-3 border-b border-d4l-border ${isToday(currentWeekStart, selectedDay) ? 'bg-d4l-gold/10' : 'bg-d4l-bg'}`}>
+                  <span className={`text-sm font-semibold ${isToday(currentWeekStart, selectedDay) ? 'text-d4l-gold' : 'text-d4l-text'}`}>
+                    {DAYS_OF_WEEK[selectedDay]} {getLocalDayOfMonth(currentWeekStart, selectedDay)}
+                  </span>
+                </div>
+
+                {priorityStaff.length === 0 ? (
+                  <div className="text-center py-12 text-d4l-dim text-sm">
+                    No priority staff members. Mark staff as priority in the Staff page.
+                  </div>
+                ) : (
+                  priorityStaff.map(member => {
+                    const day = DAYS_OF_WEEK[selectedDay];
+                    const currentRequest = shiftRequests[member.id]?.[day];
+                    const dayRestricted = member.availableDays && !member.availableDays.includes(day);
+                    return (
+                      <div key={member.id} className="flex items-center justify-between px-4 py-3 border-b border-d4l-border/50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium text-d4l-text text-sm truncate">{member.name}</span>
+                          <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                          <span className="text-[10px] text-d4l-dim">{member.role}</span>
+                        </div>
+                        {dayRestricted ? (
+                          <span className="text-[10px] text-d4l-dim/40 px-3">N/A</span>
+                        ) : (
+                          <select
+                            value={currentRequest || ''}
+                            onChange={e => setShiftRequest(member.id, day, e.target.value || null)}
+                            className={`text-sm p-2 rounded-lg outline-none transition-colors min-w-[120px] ${
+                              currentRequest
+                                ? 'bg-d4l-raised border border-d4l-hover text-d4l-text font-medium'
+                                : 'bg-transparent border border-d4l-border/50 text-d4l-dim'
+                            } focus:ring-1 focus:ring-d4l-gold/40`}
+                          >
+                            <option value="">No request</option>
+                            {BRANCHES.filter(b => member.branches.includes(b.id)).map(branch => (
+                              <option key={branch.id} value={branch.id}>
+                                {branch.name}{branch.id === member.mainBranch ? ' \u2605' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ) : (
+            /* --- DESKTOP: Original grid layout for shift requests --- */
+            <div className="bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+              <div className="overflow-x-auto">
+                <div
+                  className="min-w-[700px]"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '180px repeat(7, 1fr)',
+                  }}
+                >
+                  {/* Header */}
+                  <div className="bg-d4l-bg/80 px-3 py-3 border-b border-d4l-border">
+                    <span className="text-xs font-semibold text-d4l-dim uppercase tracking-wider">Staff</span>
+                  </div>
+                  {DAYS_OF_WEEK.map((day, i) => {
+                    const today = isToday(currentWeekStart, i);
+                    return (
+                      <div key={day} className={`bg-d4l-bg/80 text-center py-2.5 border-b border-d4l-border ${today ? 'border-b-2 border-b-d4l-gold' : ''}`}>
+                        <div className={`text-xs font-semibold ${today ? 'text-d4l-gold' : 'text-d4l-text2'}`}>{day.slice(0, 3)}</div>
+                        <div className={`text-[10px] mt-0.5 ${today ? 'text-d4l-gold/70' : 'text-d4l-dim'}`}>
+                          {getLocalDayOfMonth(currentWeekStart, i)}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Priority staff rows */}
+                  {priorityStaff.map(member => (
+                    <div key={member.id} className="contents">
+                      {/* Name */}
+                      <div className="flex items-center gap-2 px-3 py-2.5 bg-d4l-surface border-b border-d4l-border/50 animate-fade-in">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-d4l-text text-sm truncate">{member.name}</span>
+                            <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                          </div>
+                          <span className="text-[10px] text-d4l-dim">{member.role}</span>
+                        </div>
+                      </div>
+
+                      {/* Day selects */}
+                      {DAYS_OF_WEEK.map((day, i) => {
+                        const currentRequest = shiftRequests[member.id]?.[day];
+                        const dayRestricted = member.availableDays && !member.availableDays.includes(day);
+                        const today = isToday(currentWeekStart, i);
+
+                        return (
+                          <div key={day} className={`flex items-center p-1.5 border-b border-d4l-border/50 ${today ? 'bg-d4l-gold/[0.03]' : ''}`}>
+                            {dayRestricted ? (
+                              <div className="w-full text-center text-[10px] text-d4l-dim/40">-</div>
+                            ) : (
+                              <select
+                                value={currentRequest || ''}
+                                onChange={e => setShiftRequest(member.id, day, e.target.value || null)}
+                                className={`w-full text-xs p-2 rounded-lg outline-none transition-colors ${
+                                  currentRequest
+                                    ? 'bg-d4l-raised border border-d4l-hover text-d4l-text font-medium'
+                                    : 'bg-transparent border border-d4l-border/50 text-d4l-dim hover:border-d4l-border'
+                                } focus:ring-1 focus:ring-d4l-gold/40`}
+                              >
+                                <option value="">-</option>
+                                {BRANCHES.filter(b => member.branches.includes(b.id)).map(branch => (
+                                  <option key={branch.id} value={branch.id}>
+                                    {branch.name}{branch.id === member.mainBranch ? ' \u2605' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {priorityStaff.length === 0 && (
+                    <div className="col-span-8 text-center py-12 text-d4l-dim text-sm">
+                      No priority staff members. Mark staff as priority in the Staff page.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

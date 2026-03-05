@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { INITIAL_STAFF, BRANCHES, DAYS_OF_WEEK } from './data/initialData';
 import { STORAGE_KEYS, loadFromStorage, saveToStorage, subscribeToFirebase, isConfigured } from './utils/storage';
 import { auth, db, ref, set, onValue, onAuthStateChanged, signOut } from './utils/firebase';
-import Sidebar from './components/Sidebar';
+import Sidebar, { useIsMobile } from './components/Sidebar';
 import LoginPage from './components/LoginPage';
 import MonthlyCalendar from './components/MonthlyCalendar';
 import WeeklySchedule from './components/WeeklySchedule';
@@ -13,6 +13,9 @@ import Dashboard from './components/Dashboard';
 import TimesheetTracker from './components/TimesheetTracker';
 import StaffDashboard from './components/StaffDashboard';
 import AccountManager from './components/AccountManager';
+import VialStockReport from './components/VialStockReport';
+import ConsumablesStockReport from './components/ConsumablesStockReport';
+import BranchTransfers from './components/BranchTransfers';
 import { Loader2 } from 'lucide-react';
 
 function getMonday(d) {
@@ -55,7 +58,17 @@ export default function App() {
   const [timesheets, setTimesheets] = useState(() =>
     loadFromStorage(STORAGE_KEYS.TIMESHEETS, {})
   );
+  const [vialStock, setVialStock] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.VIAL_STOCK, { vials: null, stock: {}, history: [] })
+  );
+  const [consumablesStock, setConsumablesStock] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.CONSUMABLES_STOCK, { items: null, stock: {}, history: [] })
+  );
+  const [branchTransfers, setBranchTransfers] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.BRANCH_TRANSFERS, { history: [] })
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = useIsMobile();
 
   // Auth state listener
   useEffect(() => {
@@ -101,6 +114,9 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.AVAILABILITY) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
   useEffect(() => { if (canSave(STORAGE_KEYS.SHIFT_REQUESTS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
   useEffect(() => { if (canSave(STORAGE_KEYS.TIMESHEETS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.TIMESHEETS, timesheets); }, [timesheets]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.VIAL_STOCK) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.VIAL_STOCK, vialStock); }, [vialStock]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.CONSUMABLES_STOCK) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.CONSUMABLES_STOCK, consumablesStock); }, [consumablesStock]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.BRANCH_TRANSFERS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.BRANCH_TRANSFERS, branchTransfers); }, [branchTransfers]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -138,6 +154,24 @@ export default function App() {
       setTimesheets(data || {});
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.TIMESHEETS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.VIAL_STOCK, (data) => {
+      fromFirebase.current = true;
+      setVialStock(data || { vials: null, stock: {}, history: [] });
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.VIAL_STOCK)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.CONSUMABLES_STOCK, (data) => {
+      fromFirebase.current = true;
+      setConsumablesStock(data || { items: null, stock: {}, history: [] });
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.CONSUMABLES_STOCK)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.BRANCH_TRANSFERS, (data) => {
+      fromFirebase.current = true;
+      setBranchTransfers(data || { history: [] });
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.BRANCH_TRANSFERS)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
@@ -236,6 +270,42 @@ export default function App() {
     });
   }, [linkedStaffId]);
 
+  const staffSetVialStock = useCallback((updater) => {
+    setVialStock(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (isConfigured && db) {
+        set(ref(db, 'vialStock'), next).catch(console.error);
+      }
+      try { localStorage.setItem(STORAGE_KEYS.VIAL_STOCK, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const staffSetConsumablesStock = useCallback((updater) => {
+    setConsumablesStock(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (isConfigured && db) {
+        set(ref(db, 'consumablesStock'), next).catch(console.error);
+      }
+      try { localStorage.setItem(STORAGE_KEYS.CONSUMABLES_STOCK, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const staffSetBranchTransfers = useCallback((updater) => {
+    setBranchTransfers(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (isConfigured && db) {
+        set(ref(db, 'branchTransfers'), next).catch(console.error);
+      }
+      try { localStorage.setItem(STORAGE_KEYS.BRANCH_TRANSFERS, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Resolve staff name for current user
+  const currentStaffName = linkedStaffId ? (staff.find(s => s.id === linkedStaffId)?.name || null) : null;
+
   // Loading state
   if (authLoading) {
     return (
@@ -274,7 +344,7 @@ export default function App() {
   const isAdmin = userRole === 'admin';
 
   return (
-    <div className="flex h-screen bg-d4l-bg">
+    <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
       <Sidebar
         activePage={activePage}
         setActivePage={setActivePage}
@@ -285,7 +355,7 @@ export default function App() {
         onLogout={() => signOut(auth)}
       />
 
-      <main className={`flex-1 overflow-auto transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-[68px]'}`}>
+      <main className={`flex-1 overflow-auto transition-all duration-300 ${isMobile ? 'mobile-main-content' : sidebarOpen ? 'ml-64' : 'ml-[68px]'}`}>
         <div key={activePage} className="page-enter">
         {/* === ADMIN PAGES === */}
         {isAdmin && activePage === 'dashboard' && (
@@ -364,6 +434,38 @@ export default function App() {
           <AccountManager staff={staff} />
         )}
 
+        {isAdmin && activePage === 'vial-stock' && (
+          <VialStockReport
+            vialStock={vialStock}
+            setVialStock={setVialStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {isAdmin && activePage === 'consumables-stock' && (
+          <ConsumablesStockReport
+            consumablesStock={consumablesStock}
+            setConsumablesStock={setConsumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {isAdmin && activePage === 'transfers' && (
+          <BranchTransfers
+            branchTransfers={branchTransfers}
+            setBranchTransfers={setBranchTransfers}
+            vialStock={vialStock}
+            consumablesStock={consumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
         {/* === STAFF PAGES === */}
         {!isAdmin && activePage === 'my-dashboard' && (
           <StaffDashboard
@@ -418,6 +520,38 @@ export default function App() {
             timesheets={timesheets}
             setTimesheets={staffSetTimesheets}
             staffFilter={linkedStaffId}
+          />
+        )}
+
+        {!isAdmin && activePage === 'vial-stock' && (
+          <VialStockReport
+            vialStock={vialStock}
+            setVialStock={staffSetVialStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {!isAdmin && activePage === 'consumables-stock' && (
+          <ConsumablesStockReport
+            consumablesStock={consumablesStock}
+            setConsumablesStock={staffSetConsumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {!isAdmin && activePage === 'transfers' && (
+          <BranchTransfers
+            branchTransfers={branchTransfers}
+            setBranchTransfers={staffSetBranchTransfers}
+            vialStock={vialStock}
+            consumablesStock={consumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
           />
         )}
         </div>

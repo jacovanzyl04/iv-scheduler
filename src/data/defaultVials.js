@@ -1,0 +1,16 @@
+export const DEFAULT_VIALS = [
+  { id: 'myers-cocktail-25ml', name: 'MYERS COCKTAIL 25ml', minQty: 5 },
+  { id: 'glutathione-20ml', name: 'GLUTATHIONE 20ml', minQty: 5 },
+  { id: 'co-enzyme-q10-10ml', name: 'CO-ENZYME Q10 10ml', minQty: 5 },
+  { id: 'ascorbic-acid-50ml', name: 'ASCORBIC ACID 50ml', minQty: 5 },
+  { id: 'dexpanthenol-5ml', name: 'DEXPANTHENOL 5ml', minQty: 5 },
+  { id: 'vit-b-complex-10ml', name: 'VIT B COMPLEX 10ml', minQty: 5 },
+  { id: 'vit-b12-10ml', name: 'VIT B12 10ml', minQty: 5 },
+  { id: 'biotin-5ml', name: 'BIOTIN 5ml', minQty: 5 },
+  { id: 'gac-10ml', name: 'GAC 10ml', minQty: 5 },
+  { id: 'taurine-10ml', name: 'TAURINE 10ml', minQty: 5 },
+  { id: 'glutamine-10ml', name: 'GLUTAMINE 10ml', minQty: 5 },
+  { id: 'amino-plus-10ml', name: 'AMINO + 10ml', minQty: 5 },
+  { id: 'nad-plus-4ml', name: 'NAD+ 4ml', minQty: 3 },
+  { id: 'neuro-rec-4ml', name: 'NEURO REC 4ml', minQty: 3 },
+];

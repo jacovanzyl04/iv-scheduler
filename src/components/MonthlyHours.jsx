@@ -189,7 +189,7 @@ export default function MonthlyHours({ staff, schedules }) {
         {/* Expanded detail */}
         {isExpanded && (
           <div className="border-b border-d4l-border bg-d4l-bg px-4 py-3 animate-fade-in">
-            <div className="ml-6 grid grid-cols-3 gap-3 max-w-lg">
+            <div className="ml-6 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg">
               {[
                 { label: 'Weekdays', sub: 'Mon–Fri', count: info.weekdayCount, hours: info.weekdayHours, color: '#3b82f6' },
                 { label: 'Saturdays', sub: null, count: info.saturdayCount, hours: info.saturdayHours, color: '#f59e0b' },
@@ -212,24 +212,24 @@ export default function MonthlyHours({ staff, schedules }) {
   };
 
   return (
-    <div className="p-6 max-w-full mx-auto">
+    <div className="p-4 md:p-6 max-w-full mx-auto">
 
       {/* ===== HEADER ===== */}
-      <div className="flex items-center justify-between mb-8 section-animate">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 md:mb-8 section-animate">
         <div>
-          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             Pay Cycle Hours
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Track hours per pay cycle (25th — 24th)</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <button onClick={goToPrevCycle} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button onClick={goToCurrentCycle} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+          <button onClick={goToCurrentCycle} className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             This Cycle
           </button>
-          <span className="text-sm font-medium text-d4l-text2 min-w-[220px] text-center">
+          <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[160px] md:min-w-[220px] text-center">
             {cycleRange.label}
           </span>
           <button onClick={goToNextCycle} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">

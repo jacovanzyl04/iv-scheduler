@@ -3,6 +3,7 @@ import { BRANCHES, DAYS_OF_WEEK, getShiftHours } from '../data/initialData';
 import { getPayCycleForDate, getPayCycleRange, getWeekKeysForPayCycle } from '../utils/payCycle';
 import { hoursBetween } from '../utils/scheduler';
 import { ChevronLeft, ChevronRight, CalendarDays, Clock, ClipboardList, FileCheck } from 'lucide-react';
+import { useIsMobile } from './Sidebar';
 
 function formatWeekRange(weekStart) {
   const start = new Date(weekStart);
@@ -104,6 +105,12 @@ export default function StaffDashboard({
     return { total, shifts, label };
   }, [schedules, staffId]);
 
+  const isMobile = useIsMobile();
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = new Date().getDay();
+    return today === 0 ? 6 : today - 1;
+  });
+
   // Day abbreviations
   const dayAbbr = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat', Sunday: 'Sun' };
 
@@ -128,17 +135,17 @@ export default function StaffDashboard({
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-d4l-text">
+        <h1 className="text-xl md:text-2xl font-bold text-d4l-text">
           Welcome, {member?.name || 'Staff'}
         </h1>
         <p className="text-d4l-muted text-sm">Your schedule and hours overview</p>
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <button
           onClick={() => setActivePage('full-schedule')}
           className="flex items-center gap-3 p-4 stat-animate bg-d4l-surface rounded-xl border border-d4l-border hover-lift panel-glow text-left"
@@ -163,16 +170,16 @@ export default function StaffDashboard({
       </div>
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
         <h2 className="text-lg font-semibold text-d4l-text">My Schedule</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button onClick={goToToday} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+          <button onClick={goToToday} className="px-3 py-1.5 text-xs md:text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             Today
           </button>
-          <span className="text-sm font-medium text-d4l-text2 min-w-[180px] text-center">
+          <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[140px] md:min-w-[180px] text-center">
             {formatWeekRange(currentWeekStart)}
           </span>
           <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors">
@@ -181,43 +188,108 @@ export default function StaffDashboard({
         </div>
       </div>
 
-      {/* Weekly Schedule Grid */}
-      <div className="section-animate section-animate-delay-1 bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden mb-6 panel-glow">
-        <div className="grid grid-cols-7 divide-x divide-d4l-border">
-          {DAYS_OF_WEEK.map((day, i) => {
+      {/* Weekly Schedule Grid — Mobile: day-by-day, Desktop: 7-col grid */}
+      {isMobile ? (
+        <div className="section-animate section-animate-delay-1 mb-6">
+          {/* Day selector tabs */}
+          <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
+            {DAYS_OF_WEEK.map((day, i) => {
+              const today = isToday(i);
+              const assignments = mySchedule[day];
+              const hasShift = assignments.length > 0;
+              return (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(i)}
+                  className={`flex flex-col items-center min-w-[46px] py-2 px-1 rounded-xl text-xs font-medium transition-all ${
+                    selectedDay === i
+                      ? 'bg-d4l-gold text-black'
+                      : today
+                        ? 'bg-d4l-gold/15 text-d4l-gold'
+                        : 'bg-d4l-surface border border-d4l-border text-d4l-text2'
+                  }`}
+                >
+                  <span className="text-[10px]">{dayAbbr[day]}</span>
+                  <span className="text-base font-bold">{getDayDate(i)}</span>
+                  {hasShift && selectedDay !== i && <span className="w-1.5 h-1.5 rounded-full bg-d4l-gold mt-0.5" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected day assignments */}
+          {(() => {
+            const day = DAYS_OF_WEEK[selectedDay];
             const assignments = mySchedule[day];
-            const today = isToday(i);
             return (
-              <div key={day} className={`${today ? 'bg-d4l-gold/5' : ''}`}>
-                <div className={`text-center py-2 border-b border-d4l-border ${today ? 'bg-d4l-gold/10' : 'bg-d4l-bg'}`}>
-                  <div className={`text-xs font-semibold ${today ? 'text-d4l-gold' : 'text-d4l-text2'}`}>
-                    {dayAbbr[day]}
-                  </div>
-                  <div className={`text-lg font-bold ${today ? 'text-d4l-gold' : 'text-d4l-text'}`}>
-                    {getDayDate(i)}
-                  </div>
+              <div className="bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+                <div className={`px-4 py-3 border-b border-d4l-border ${isToday(selectedDay) ? 'bg-d4l-gold/10' : 'bg-d4l-bg'}`}>
+                  <span className={`text-sm font-semibold ${isToday(selectedDay) ? 'text-d4l-gold' : 'text-d4l-text'}`}>
+                    {day} {getDayDate(selectedDay)}
+                  </span>
                 </div>
-                <div className="p-2 min-h-[100px]">
+                <div className="p-3">
                   {assignments.length === 0 ? (
-                    <div className="text-xs text-d4l-dim text-center mt-6">Off</div>
+                    <div className="text-sm text-d4l-dim text-center py-8">Day off</div>
                   ) : (
-                    assignments.map((a, idx) => (
-                      <div key={idx} className={`mb-2 p-2 rounded-lg border text-xs ${branchColorMap[a.branchColor] || 'bg-d4l-raised text-d4l-text2 border-d4l-border'}`}>
-                        <div className="font-semibold">{a.branch}</div>
-                        <div className="text-[10px] opacity-75">{a.role}</div>
-                        {a.shiftStart && a.shiftEnd && (
-                          <div className="mt-1">{a.shiftStart} - {a.shiftEnd}</div>
-                        )}
-                        <div className="mt-0.5 font-medium">{a.hours}h</div>
-                      </div>
-                    ))
+                    <div className="space-y-2">
+                      {assignments.map((a, idx) => (
+                        <div key={idx} className={`p-3 rounded-lg border text-sm ${branchColorMap[a.branchColor] || 'bg-d4l-raised text-d4l-text2 border-d4l-border'}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="font-semibold">{a.branch}</div>
+                            <span className="text-xs opacity-75">{a.role}</span>
+                          </div>
+                          <div className="flex items-center justify-between mt-1 text-xs">
+                            {a.shiftStart && a.shiftEnd ? <span>{a.shiftStart} - {a.shiftEnd}</span> : <span />}
+                            <span className="font-medium">{a.hours}h</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
             );
-          })}
+          })()}
         </div>
-      </div>
+      ) : (
+        <div className="section-animate section-animate-delay-1 bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden mb-6 panel-glow">
+          <div className="grid grid-cols-7 divide-x divide-d4l-border">
+            {DAYS_OF_WEEK.map((day, i) => {
+              const assignments = mySchedule[day];
+              const today = isToday(i);
+              return (
+                <div key={day} className={`${today ? 'bg-d4l-gold/5' : ''}`}>
+                  <div className={`text-center py-2 border-b border-d4l-border ${today ? 'bg-d4l-gold/10' : 'bg-d4l-bg'}`}>
+                    <div className={`text-xs font-semibold ${today ? 'text-d4l-gold' : 'text-d4l-text2'}`}>
+                      {dayAbbr[day]}
+                    </div>
+                    <div className={`text-lg font-bold ${today ? 'text-d4l-gold' : 'text-d4l-text'}`}>
+                      {getDayDate(i)}
+                    </div>
+                  </div>
+                  <div className="p-2 min-h-[100px]">
+                    {assignments.length === 0 ? (
+                      <div className="text-xs text-d4l-dim text-center mt-6">Off</div>
+                    ) : (
+                      assignments.map((a, idx) => (
+                        <div key={idx} className={`mb-2 p-2 rounded-lg border text-xs ${branchColorMap[a.branchColor] || 'bg-d4l-raised text-d4l-text2 border-d4l-border'}`}>
+                          <div className="font-semibold">{a.branch}</div>
+                          <div className="text-[10px] opacity-75">{a.role}</div>
+                          {a.shiftStart && a.shiftEnd && (
+                            <div className="mt-1">{a.shiftStart} - {a.shiftEnd}</div>
+                          )}
+                          <div className="mt-0.5 font-medium">{a.hours}h</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Hours Summary Cards */}
       <div className="grid grid-cols-2 gap-4">

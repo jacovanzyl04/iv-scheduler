@@ -96,24 +96,25 @@ export default function StaffManager({ staff, setStaff }) {
   const permanentCount = staff.filter(s => s.employmentType === 'permanent').length;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-d4l-text">Staff Management</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-d4l-text">Staff Management</h1>
           <p className="text-d4l-muted text-sm">{staff.length} team members</p>
         </div>
         <button
           onClick={startAdd}
-          className="flex items-center gap-2 px-4 py-2.5 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow"
+          className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow text-sm"
         >
           <UserPlus className="w-4 h-4" />
-          Add Staff
+          <span className="hidden sm:inline">Add Staff</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
           { label: 'Nurses', count: nurseCount, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
           { label: 'Receptionists', count: receptionistCount, color: 'bg-pink-500/10 text-pink-400 border-pink-500/20' },
@@ -128,19 +129,19 @@ export default function StaffManager({ staff, setStaff }) {
       </div>
 
       {/* Filters + Search */}
-      <div className="flex items-center gap-3 mb-5">
-        <div className="flex gap-1.5 bg-d4l-bg rounded-lg p-1">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5">
+        <div className="flex gap-1.5 bg-d4l-bg rounded-lg p-1 overflow-x-auto">
           {[
             { key: 'all', label: 'All' },
             { key: 'nurses', label: 'Nurses' },
-            { key: 'receptionists', label: 'Receptionists' },
+            { key: 'receptionists', label: 'Recep.' },
             { key: 'support', label: 'Support' },
-            { key: 'permanent', label: 'Permanent' },
+            { key: 'permanent', label: 'Perm.' },
           ].map(f => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                 filter === f.key
                   ? 'bg-d4l-gold text-black font-semibold shadow-sm'
                   : 'text-d4l-text2 hover:text-d4l-text hover:bg-d4l-hover'
@@ -150,17 +151,19 @@ export default function StaffManager({ staff, setStaff }) {
             </button>
           ))}
         </div>
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-d4l-dim" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search staff..."
-            className="w-full pl-9 pr-3 py-2 text-sm bg-d4l-bg border border-d4l-border rounded-lg text-d4l-text placeholder:text-d4l-dim focus:outline-none focus:ring-1 focus:ring-d4l-gold/40"
-          />
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-d4l-dim" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search staff..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-d4l-bg border border-d4l-border rounded-lg text-d4l-text placeholder:text-d4l-dim focus:outline-none focus:ring-1 focus:ring-d4l-gold/40"
+            />
+          </div>
+          <span className="text-xs text-d4l-dim ml-auto">{filteredStaff.length} shown</span>
         </div>
-        <span className="text-xs text-d4l-dim ml-auto">{filteredStaff.length} shown</span>
       </div>
 
       {/* Staff cards */}
@@ -201,7 +204,7 @@ export default function StaffManager({ staff, setStaff }) {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button onClick={() => startEdit(member)} className="p-1.5 rounded-lg hover:bg-d4l-hover text-d4l-dim hover:text-d4l-text2" title="Edit">
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
@@ -302,7 +305,7 @@ export default function StaffManager({ staff, setStaff }) {
       {/* Edit/Add Modal */}
       {showForm && formData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowForm(false)}>
-          <div className="bg-d4l-surface rounded-2xl shadow-2xl w-[520px] max-h-[90vh] overflow-hidden animate-fade-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-d4l-surface rounded-2xl shadow-2xl w-full max-w-[520px] mx-4 max-h-[90dvh] overflow-hidden animate-fade-in" onClick={e => e.stopPropagation()}>
             {/* Modal header */}
             <div className="px-6 py-4 border-b border-d4l-border flex items-center justify-between">
               <h3 className="text-lg font-semibold text-d4l-text">

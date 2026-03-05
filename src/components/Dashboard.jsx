@@ -108,26 +108,26 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
 
       {/* ===== SECTION 1: TOP BAR ===== */}
-      <div className="flex items-center justify-between mb-8 section-animate">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 md:mb-8 section-animate">
         <div>
-          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             {greeting}
           </h1>
-          <p className="text-d4l-muted text-sm mt-0.5">
+          <p className="text-d4l-muted text-xs md:text-sm mt-0.5">
             {now.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button onClick={goToToday} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+          <button onClick={goToToday} className="px-3 py-1.5 text-xs md:text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             Today
           </button>
-          <span className="text-sm font-medium text-d4l-text2 min-w-[180px] text-center">
+          <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[140px] md:min-w-[180px] text-center">
             {formatWeekRange(currentWeekStart)}
           </span>
           <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
@@ -137,7 +137,7 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
       </div>
 
       {/* ===== SECTION 2: PREMIUM STAT CARDS ===== */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
         {/* Coverage */}
         <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
           <div className={`h-[2px] bg-gradient-to-r ${gradients[covColor]}`} />
@@ -330,9 +330,11 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
         </h2>
 
         <div className="bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+          <div className="overflow-x-auto">
+          <div className="min-w-[600px]">
           {/* Day headers */}
-          <div className="grid border-b border-d4l-border bg-d4l-bg" style={{ gridTemplateColumns: '180px repeat(7, 1fr)' }}>
-            <div className="p-3 text-[10px] text-d4l-dim font-medium uppercase tracking-wider">Branch</div>
+          <div className="grid border-b border-d4l-border bg-d4l-bg" style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}>
+            <div className="p-2 md:p-3 text-[10px] text-d4l-dim font-medium uppercase tracking-wider">Branch</div>
             {DAYS_OF_WEEK.map((day, i) => {
               const d = new Date(currentWeekStart);
               d.setDate(d.getDate() + i);
@@ -355,7 +357,7 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
           {BRANCHES.map(branch => (
             <div key={branch.id}
               className="row-animate grid border-b border-d4l-border last:border-b-0 hover:bg-d4l-hover/30 transition-colors"
-              style={{ gridTemplateColumns: '180px repeat(7, 1fr)' }}
+              style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}
             >
               {/* Branch name */}
               <div className="p-3 flex items-center gap-2.5 border-l-[3px]"
@@ -405,6 +407,14 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
                       setHoverInfo({ branchId: branch.id, day, nurses, receptionists, rect, branchName: branch.name, isClinic: branch.isClinic });
                     }}
                     onMouseLeave={() => setHoverInfo(null)}
+                    onClick={(e) => {
+                      if (!open) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoverInfo(prev =>
+                        prev?.branchId === branch.id && prev?.day === day ? null
+                        : { branchId: branch.id, day, nurses, receptionists, rect, branchName: branch.name, isClinic: branch.isClinic }
+                      );
+                    }}
                   >
                     <div className={`w-3 h-3 rounded-full coverage-dot ${dotClass} ${status === 'no-nurse' ? 'pulse-dot' : ''}`} />
                   </div>
@@ -413,9 +423,11 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
             </div>
           ))}
         </div>
+        </div>{/* end min-w */}
+        </div>{/* end overflow-x-auto */}
 
         {/* Legend */}
-        <div className="flex items-center gap-5 mt-3 px-1">
+        <div className="flex flex-wrap items-center gap-3 md:gap-5 mt-3 px-1">
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-400" /><span className="text-[10px] text-d4l-dim">Fully staffed</span></div>
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-400" /><span className="text-[10px] text-d4l-dim">Missing receptionist</span></div>
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400" /><span className="text-[10px] text-d4l-dim">Missing nurse</span></div>

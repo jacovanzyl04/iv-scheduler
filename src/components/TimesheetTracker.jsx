@@ -152,7 +152,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
     const isSubmitted = ts.status === 'submitted';
 
     return (
-      <div key={staffId} className="row-animate grid items-center border-b border-d4l-border last:border-b-0 hover:bg-d4l-hover/30 transition-colors px-4 py-3"
+      <div key={staffId} className="row-animate grid items-center border-b border-d4l-border last:border-b-0 hover:bg-d4l-hover/30 transition-colors px-4 py-3 min-w-[600px]"
         style={{ gridTemplateColumns: '1fr 70px 70px 110px 100px 1fr' }}>
         {/* Name + badges + file */}
         <div>
@@ -257,7 +257,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
     if (entries.length === 0) return null;
     return (
       <>
-        <div className={`px-4 py-2 border-l-[3px]`} style={{ borderLeftColor: color, background: `${color}08` }}>
+        <div className={`px-4 py-2 border-l-[3px] min-w-[600px]`} style={{ borderLeftColor: color, background: `${color}08` }}>
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color, fontFamily: "'Bebas Neue', sans-serif" }}>
             {label}
           </span>
@@ -268,24 +268,24 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   };
 
   return (
-    <div className="p-6 max-w-full mx-auto">
+    <div className="p-4 md:p-6 max-w-full mx-auto">
 
       {/* ===== HEADER ===== */}
-      <div className="flex items-center justify-between mb-8 section-animate">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 md:mb-8 section-animate">
         <div>
-          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             {staffFilter ? 'My Timesheet' : 'Timesheets'}
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Track pay cycle timesheet submissions</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <button onClick={goToPrevCycle} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <button onClick={goToCurrentCycle} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+          <button onClick={goToCurrentCycle} className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             This Cycle
           </button>
-          <span className="text-sm font-medium text-d4l-text2 min-w-[220px] text-center">
+          <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[160px] md:min-w-[220px] text-center">
             {cycleRange.label}
           </span>
           <button onClick={goToNextCycle} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
@@ -335,8 +335,9 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         </div>
       ) : (
         <div className="section-animate section-animate-delay-1 bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
+          <div className="overflow-x-auto">
           {/* Header row */}
-          <div className="grid items-center bg-d4l-bg border-b border-d4l-border px-4 py-2.5"
+          <div className="grid items-center bg-d4l-bg border-b border-d4l-border px-4 py-2.5 min-w-[600px]"
             style={{ gridTemplateColumns: '1fr 70px 70px 110px 100px 1fr' }}>
             <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium">Staff Member</span>
             <span className="text-[10px] uppercase tracking-wider text-d4l-muted font-medium text-center">Shifts</span>
@@ -350,6 +351,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           {renderRoleGroup('Nurses', nurses, '#3b82f6')}
           {renderRoleGroup('Receptionists', receptionists, '#ec4899')}
           {renderRoleGroup('Support Staff', support, '#22c55e')}
+          </div>
         </div>
       )}
 

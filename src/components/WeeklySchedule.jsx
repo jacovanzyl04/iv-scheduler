@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, Fragment } from 'react';
+import { useIsMobile } from './Sidebar';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours, isScheduleRole } from '../data/initialData';
 import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, timeToMinutes } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
@@ -87,6 +88,13 @@ export default function WeeklySchedule({
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showUnassigned, setShowUnassigned] = useState(false);
   const [showHours, setShowHours] = useState(false);
+  const isMobile = useIsMobile();
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const today = new Date().getDay();
+    // Convert JS day (0=Sun) to our DAYS_OF_WEEK index (0=Mon)
+    const idx = today === 0 ? 6 : today - 1;
+    return DAYS_OF_WEEK[idx] || 'Monday';
+  });
 
   const { warnings, errors } = validateSchedule(schedule, staff);
   const weeklyHours = calculateWeeklyHours(schedule, staff);
@@ -557,24 +565,67 @@ export default function WeeklySchedule({
   };
 
   return (
-    <div className="p-4 lg:p-6">
+    <div className="p-3 md:p-4 lg:p-6">
       {/* === TOOLBAR === */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-        {/* Left: Title */}
-        <div>
-          <h1 className="text-xl font-bold text-d4l-text">{readOnly ? 'Full Schedule' : 'Weekly Schedule'}</h1>
-          <p className="text-d4l-muted text-xs">{readOnly ? "View the team's weekly assignments" : 'Drag staff between cells or click + to assign'}</p>
+      <div className="flex flex-col md:flex-row md:flex-wrap md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-5">
+        {/* Top row: Title + Actions */}
+        <div className="flex items-center justify-between md:justify-start gap-3">
+          <div>
+            <h1 className="text-lg md:text-xl font-bold text-d4l-text">{readOnly ? 'Full Schedule' : 'Weekly Schedule'}</h1>
+            <p className="text-d4l-muted text-xs hidden md:block">{readOnly ? "View the team's weekly assignments" : 'Drag staff between cells or click + to assign'}</p>
+          </div>
+          {/* Mobile actions */}
+          {!readOnly && isMobile && (
+            <div className="flex items-center gap-1.5">
+              <button onClick={handleAutoSchedule}
+                className="flex items-center gap-1.5 px-3 py-2 bg-d4l-gold text-black text-xs font-semibold rounded-lg">
+                <Wand2 className="w-3.5 h-3.5" />
+                Auto
+              </button>
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowActionsMenu(!showActionsMenu); }}
+                  className="p-2 bg-d4l-surface border border-d4l-border text-d4l-text2 rounded-lg"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+                {showActionsMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-d4l-surface border border-d4l-border rounded-xl shadow-xl z-40 py-1 animate-fade-in">
+                    <button onClick={() => { handleClearSchedule(); setShowActionsMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-d4l-text2 hover:bg-d4l-hover flex items-center gap-2.5 transition-colors">
+                      <Trash2 className="w-4 h-4" /> Clear Schedule
+                    </button>
+                    <button onClick={() => { handleExport(); setShowActionsMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-d4l-text2 hover:bg-d4l-hover flex items-center gap-2.5 transition-colors">
+                      <Download className="w-4 h-4" /> Export Excel
+                    </button>
+                    <button onClick={() => { handleExportPdf(); setShowActionsMenu(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-d4l-text2 hover:bg-d4l-hover flex items-center gap-2.5 transition-colors">
+                      <FileText className="w-4 h-4" /> Export PDF
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setShowValidation(!showValidation)}
+                className={`flex items-center gap-1 px-2 py-2 rounded-lg text-xs ${
+                  errors.length > 0 ? 'text-red-400' : warnings.length > 0 ? 'text-amber-400' : 'text-green-400'
+                }`}>
+                {errors.length > 0 ? <AlertCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                <span className="font-medium">{errors.length + warnings.length}</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Center: Week nav in a pill */}
-        <div className="flex items-center gap-1 bg-d4l-surface rounded-xl border border-d4l-border px-1 py-1">
+        {/* Week nav in a pill */}
+        <div className="flex items-center justify-center gap-1 bg-d4l-surface rounded-xl border border-d4l-border px-1 py-1">
           <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button onClick={goToToday} className="px-3 py-1.5 text-xs font-semibold text-d4l-gold hover:bg-d4l-gold/10 rounded-lg transition-colors">
             Today
           </button>
-          <span className="text-sm font-medium text-d4l-text2 min-w-[170px] text-center select-none">
+          <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[140px] md:min-w-[170px] text-center select-none">
             {formatWeekRange(currentWeekStart)}
           </span>
           <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
@@ -582,8 +633,8 @@ export default function WeeklySchedule({
           </button>
         </div>
 
-        {/* Right: Actions (admin only) */}
-        {!readOnly && (
+        {/* Desktop actions (admin only) */}
+        {!readOnly && !isMobile && (
           <div className="flex items-center gap-2">
             <button onClick={handleAutoSchedule}
               className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black text-sm font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
@@ -657,6 +708,178 @@ export default function WeeklySchedule({
         </div>
       )}
 
+      {/* ============= MOBILE: Day-by-day card view ============= */}
+      {isMobile ? (
+        <>
+          {/* Day selector tabs */}
+          <div className="flex gap-1 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
+            {DAYS_OF_WEEK.map((day, i) => {
+              const active = selectedDay === day;
+              const today = isToday(i);
+              return (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(day)}
+                  className={`flex flex-col items-center px-3 py-2 rounded-xl shrink-0 transition-all ${
+                    active ? 'bg-d4l-gold text-black' : today ? 'bg-d4l-gold/10 text-d4l-gold' : 'bg-d4l-surface text-d4l-text2'
+                  }`}
+                >
+                  <span className="text-[10px] font-semibold">{day.slice(0, 3)}</span>
+                  <span className={`text-sm font-bold ${active ? '' : ''}`}>{getDayDate(currentWeekStart, i)}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Unassigned for selected day */}
+          {!readOnly && (() => {
+            const unassigned = getUnassignedForDay(selectedDay);
+            if (unassigned.length === 0) return null;
+            return (
+              <div className="mb-3">
+                <button
+                  onClick={() => setShowUnassigned(!showUnassigned)}
+                  className="flex items-center gap-2 text-xs text-d4l-muted mb-1.5"
+                >
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showUnassigned ? 'rotate-90' : ''}`} />
+                  <span className="font-medium">Unassigned ({unassigned.length})</span>
+                </button>
+                {showUnassigned && (
+                  <div className="flex flex-wrap gap-1.5 animate-fade-in">
+                    {unassigned.map(member => (
+                      <span
+                        key={member.id}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border-l-2
+                          ${member.role === 'nurse' ? 'border-l-blue-400' : 'border-l-pink-400'}
+                          bg-d4l-surface text-d4l-muted`}
+                      >
+                        {member.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Branch cards for selected day */}
+          <div className="space-y-3">
+            {BRANCHES.map(branch => {
+              const dayIndex = DAYS_OF_WEEK.indexOf(selectedDay);
+              const open = isBranchOpen(branch.id, selectedDay);
+              if (!open) {
+                return (
+                  <div key={branch.id} className="bg-d4l-surface rounded-xl border border-d4l-border p-3 opacity-40" style={{ borderLeft: `3px solid ${branch.color}` }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-d4l-text">{branch.name}</span>
+                      <span className="text-xs text-d4l-dim">Closed</span>
+                    </div>
+                  </div>
+                );
+              }
+
+              const cell = schedule[selectedDay]?.[branch.id];
+              const nurses = cell?.nurses || [];
+              const receptionists = cell?.receptionists || [];
+              const maxNurses = (branch.id === 'parkview' && selectedDay === 'Saturday') ? 2 : 1;
+              const needsNurse = nurses.length < maxNurses;
+              const needsRec = !branch.isClinic && receptionists.length === 0;
+
+              return (
+                <div key={branch.id}
+                  className={`bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden ${
+                    needsNurse ? 'ring-1 ring-red-500/25' : needsRec ? 'ring-1 ring-amber-500/20' : ''
+                  }`}
+                  style={{ borderLeft: `3px solid ${branch.color}` }}
+                >
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-d4l-text">{branch.name}</span>
+                      <span className="text-[10px] text-d4l-dim">{branch.isClinic ? 'Nurse only' : 'Nurse + Recep.'}</span>
+                    </div>
+
+                    {/* Nurses */}
+                    <div className="mb-2">
+                      <span className="text-[10px] uppercase tracking-wider text-blue-400 font-medium">Nurses</span>
+                      <div className="mt-1 space-y-1.5">
+                        {nurses.map(n => (
+                          <div key={n.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-d4l-raised/60 border-l-2 border-l-blue-400">
+                            <span className="flex-1 text-sm text-d4l-text2 font-medium">{n.name}</span>
+                            {fmtShiftRange(n, branch.id, selectedDay) && (
+                              <span className="text-[10px] text-d4l-dim">{fmtShiftRange(n, branch.id, selectedDay)}</span>
+                            )}
+                            {n.locked && <span className="w-1.5 h-1.5 rounded-full bg-d4l-gold/60" />}
+                            {!readOnly && (
+                              <div className="flex gap-1">
+                                <button onClick={() => toggleLock(selectedDay, branch.id, 'nurse', n.id)}
+                                  className="p-1 rounded text-d4l-dim hover:text-d4l-gold">
+                                  {n.locked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                                </button>
+                                <button onClick={() => removeAssignment(selectedDay, branch.id, 'nurse', n.id)}
+                                  className="p-1 rounded text-d4l-dim hover:text-red-400">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {!readOnly && needsNurse && (
+                          <button
+                            onClick={() => setAssignModal({ day: selectedDay, branchId: branch.id, role: 'nurse' })}
+                            className="w-full flex items-center justify-center gap-1.5 text-xs text-d4l-dim hover:text-blue-400 py-2 rounded-lg border border-dashed border-d4l-border hover:border-blue-400/30 transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Nurse
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Receptionists (skip for clinic) */}
+                    {!branch.isClinic && (
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider text-pink-400 font-medium">Receptionists</span>
+                        <div className="mt-1 space-y-1.5">
+                          {receptionists.map(r => (
+                            <div key={r.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-d4l-raised/60 border-l-2 border-l-pink-400">
+                              <span className="flex-1 text-sm text-d4l-text2 font-medium">{r.name}</span>
+                              {fmtShiftRange(r, branch.id, selectedDay) && (
+                                <span className="text-[10px] text-d4l-dim">{fmtShiftRange(r, branch.id, selectedDay)}</span>
+                              )}
+                              {r.locked && <span className="w-1.5 h-1.5 rounded-full bg-d4l-gold/60" />}
+                              {!readOnly && (
+                                <div className="flex gap-1">
+                                  <button onClick={() => toggleLock(selectedDay, branch.id, 'receptionist', r.id)}
+                                    className="p-1 rounded text-d4l-dim hover:text-d4l-gold">
+                                    {r.locked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button onClick={() => removeAssignment(selectedDay, branch.id, 'receptionist', r.id)}
+                                    className="p-1 rounded text-d4l-dim hover:text-red-400">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {!readOnly && receptionists.length === 0 && (
+                            <button
+                              onClick={() => setAssignModal({ day: selectedDay, branchId: branch.id, role: 'receptionist' })}
+                              className="w-full flex items-center justify-center gap-1.5 text-xs text-d4l-dim hover:text-pink-400 py-2 rounded-lg border border-dashed border-d4l-border hover:border-pink-400/30 transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Receptionist
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+      /* ============= DESKTOP: Original grid layout ============= */
+      <>
       {/* === COLLAPSIBLE UNASSIGNED POOL (above grid) === */}
       {!readOnly && (
         <div className="mb-3">
@@ -743,6 +966,8 @@ export default function WeeklySchedule({
           ))}
         </div>
       </div>
+      </>
+      )}
 
       {/* === COLLAPSIBLE HOURS SUMMARY === */}
       {!readOnly && (
@@ -756,7 +981,7 @@ export default function WeeklySchedule({
           </button>
           {showHours && (
             <div className="bg-d4l-surface rounded-xl border border-d4l-border p-4 animate-fade-in">
-              <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-7 gap-2">
                 {staff.filter(m => weeklyHours[m.id]?.shifts > 0).map(member => (
                   <div key={member.id} className="bg-d4l-bg rounded-lg px-3 py-2">
                     <div className="font-medium text-d4l-text2 text-xs">{member.name}</div>
@@ -772,7 +997,7 @@ export default function WeeklySchedule({
       {/* === ASSIGNMENT MODAL === */}
       {assignModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setAssignModal(null)}>
-          <div className="bg-d4l-surface rounded-xl shadow-xl p-6 w-80 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-d4l-surface rounded-xl shadow-xl p-5 md:p-6 w-[calc(100%-2rem)] max-w-sm max-h-[80vh] overflow-y-auto animate-fade-in mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-d4l-text text-sm">
                 Assign {assignModal.role === 'nurse' ? 'Nurse' : 'Receptionist'}
@@ -819,7 +1044,7 @@ export default function WeeklySchedule({
       {/* === TIME PICKER MODAL === */}
       {timePickerModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setTimePickerModal(null)}>
-          <div className="bg-d4l-surface rounded-xl shadow-xl p-6 w-72 animate-fade-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-d4l-surface rounded-xl shadow-xl p-5 md:p-6 w-[calc(100%-2rem)] max-w-[288px] animate-fade-in mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-d4l-text text-sm flex items-center gap-2">
                 <Clock className="w-4 h-4" />

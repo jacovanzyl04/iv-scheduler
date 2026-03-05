@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye } from 'lucide-react';
+import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye, MoreHorizontal, Package, ShoppingCart, ArrowRightLeft } from 'lucide-react';
 
 const adminNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -9,26 +9,163 @@ const adminNavItems = [
   { id: 'availability', label: 'Availability', icon: ClipboardList },
   { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
   { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+  { id: 'vial-stock', label: 'Vial Stock', icon: Package },
+  { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
+  { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
   { id: 'accounts', label: 'Manage Accounts', icon: UserCog },
 ];
 
 const staffNavItems = [
   { id: 'my-dashboard', label: 'My Schedule', icon: LayoutDashboard },
   { id: 'full-schedule', label: 'Full Schedule', icon: Eye },
-  { id: 'my-availability', label: 'My Availability', icon: ClipboardList },
-  { id: 'my-timesheet', label: 'My Timesheet', icon: FileCheck },
+  { id: 'my-availability', label: 'Availability', icon: ClipboardList },
+  { id: 'my-timesheet', label: 'Timesheet', icon: FileCheck },
+  { id: 'vial-stock', label: 'Vial Stock', icon: Package },
+  { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
+  { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
 ];
 
+// Admin bottom tabs: show 4 main + More
+const adminBottomTabs = [
+  { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+  { id: 'schedule', label: 'Schedule', icon: Calendar },
+  { id: 'staff', label: 'Staff', icon: Users },
+  { id: 'availability', label: 'Avail.', icon: ClipboardList },
+];
+
+const adminMoreItems = [
+  { id: 'calendar', label: 'Monthly Calendar', icon: CalendarDays },
+  { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
+  { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+  { id: 'vial-stock', label: 'Vial Stock', icon: Package },
+  { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
+  { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
+  { id: 'accounts', label: 'Manage Accounts', icon: UserCog },
+];
+
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= breakpoint);
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const handler = (e) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    setIsMobile(mql.matches);
+    return () => mql.removeEventListener('change', handler);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
+export { useIsMobile };
+
 export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, userRole, currentUser, onLogout }) {
+  const isMobile = useIsMobile();
   const navItems = userRole === 'admin' ? adminNavItems : staffNavItems;
   const [mounted, setMounted] = useState(false);
   const [hoveredId, setHoveredId] = useState(null);
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
     return () => clearTimeout(timer);
   }, []);
 
+  // Close more sheet when page changes
+  useEffect(() => {
+    setShowMore(false);
+  }, [activePage]);
+
+  // === MOBILE LAYOUT ===
+  if (isMobile) {
+    const bottomTabs = userRole === 'admin' ? adminBottomTabs : staffNavItems;
+    const isMorePage = userRole === 'admin' && adminMoreItems.some(item => item.id === activePage);
+
+    return (
+      <>
+        {/* Mobile top header */}
+        <header className="mobile-top-header">
+          <div className="flex items-center gap-2">
+            <div className="sidebar-logo-ring" style={{ width: 30, height: 30, borderRadius: 8 }}>
+              <Droplets className="w-4 h-4 text-d4l-gold" />
+            </div>
+            <h1 className="text-sm font-bold font-[Bebas_Neue] tracking-[0.12em] sidebar-brand-text">
+              DRIP4LIFE
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {currentUser?.email && (
+              <div className="sidebar-user-avatar" style={{ width: 28, height: 28, borderRadius: 7, fontSize: '0.7rem' }}>
+                {currentUser.email.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-lg text-d4l-dim hover:text-red-400 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile bottom tab bar */}
+        <nav className="mobile-bottom-bar">
+          {bottomTabs.map(item => {
+            const Icon = item.icon;
+            const active = activePage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActivePage(item.id)}
+                className={`mobile-tab ${active ? 'active' : ''}`}
+              >
+                <span className="tab-dot" />
+                <Icon className="w-5 h-5" />
+                <span className="tab-label">{item.label}</span>
+              </button>
+            );
+          })}
+          {userRole === 'admin' && (
+            <button
+              onClick={() => setShowMore(!showMore)}
+              className={`mobile-tab ${isMorePage || showMore ? 'active' : ''}`}
+            >
+              <span className="tab-dot" />
+              <MoreHorizontal className="w-5 h-5" />
+              <span className="tab-label">More</span>
+            </button>
+          )}
+        </nav>
+
+        {/* More sheet */}
+        {showMore && (
+          <>
+            <div className="mobile-more-sheet-backdrop" onClick={() => setShowMore(false)} />
+            <div className="mobile-more-sheet">
+              <div className="w-10 h-1 bg-d4l-hover rounded-full mx-auto mb-3" />
+              {adminMoreItems.map(item => {
+                const Icon = item.icon;
+                const active = activePage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActivePage(item.id); setShowMore(false); }}
+                    className={`mobile-more-item ${active ? 'active' : ''}`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </>
+    );
+  }
+
+  // === DESKTOP LAYOUT (unchanged) ===
   const activeIndex = navItems.findIndex(item => item.id === activePage);
 
   return (
