@@ -74,8 +74,30 @@ export function getWeekKeysForPayCycle(cycleStartStr) {
  * Returns { [staffId]: { name, role, employmentType, shifts, hours } }
  */
 export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
-  const { start, end } = getPayCycleRange(cycleStartStr);
-  const weekKeys = getWeekKeysForPayCycle(cycleStartStr);
+  const stdRange = getPayCycleRange(cycleStartStr);
+  const mRange = getMonthlyRangeForCycle(cycleStartStr);
+
+  // Build per-staff range lookup
+  const staffRanges = {};
+  staff.forEach(s => {
+    staffRanges[s.id] = s.payCycleType === 'monthly' ? mRange : stdRange;
+  });
+
+  // Get week keys covering union of both ranges
+  const stdKeys = getWeekKeysForPayCycle(cycleStartStr);
+  const allKeys = new Set(stdKeys);
+  const cur = new Date(mRange.start);
+  const dow = cur.getDay();
+  cur.setDate(cur.getDate() + (dow === 0 ? -6 : 1 - dow));
+  while (cur <= mRange.end) {
+    const yr = cur.getFullYear();
+    const mo = String(cur.getMonth() + 1).padStart(2, '0');
+    const dy = String(cur.getDate()).padStart(2, '0');
+    allKeys.add(`${yr}-${mo}-${dy}`);
+    cur.setDate(cur.getDate() + 7);
+  }
+  const weekKeys = [...allKeys].sort();
+
   const result = {};
 
   weekKeys.forEach(weekKey => {
@@ -87,9 +109,6 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
       const dayDate = new Date(weekStart);
       dayDate.setDate(dayDate.getDate() + dayIndex);
 
-      // Only count days within the pay cycle range
-      if (dayDate < start || dayDate > end) return;
-
       // Collect per-person shifts for this day across all branches
       const dayShifts = {}; // { personId: { person, branches: [], totalHours: 0 } }
 
@@ -100,6 +119,10 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
         const defaultHrs = getShiftHours(branch.id, day);
 
         [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
+          // Per-staff date range check
+          const range = staffRanges[person.id] || stdRange;
+          if (dayDate < range.start || dayDate > range.end) return;
+
           if (!dayShifts[person.id]) {
             dayShifts[person.id] = { person, branches: [], totalHours: 0 };
           }
@@ -156,6 +179,22 @@ export function getSupportStaffForPayCycle(staff) {
     }
   });
   return result;
+}
+
+/**
+ * For staff with payCycleType === 'monthly', convert the standard 25th-based
+ * cycle into the corresponding calendar month range (1st to last day).
+ * Standard cycle "25 Feb - 24 Mar" → monthly cycle "1 Mar - 31 Mar".
+ */
+export function getMonthlyRangeForCycle(cycleStartStr) {
+  const d = new Date(cycleStartStr + 'T12:00:00');
+  // The standard cycle starts on the 25th of month M, so the
+  // corresponding calendar month is M+1
+  const monthStart = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  const monthEnd = new Date(d.getFullYear(), d.getMonth() + 2, 0); // last day of that month
+  const opts = { day: 'numeric', month: 'short', year: 'numeric' };
+  const label = `${monthStart.toLocaleDateString('en-ZA', opts)} \u2014 ${monthEnd.toLocaleDateString('en-ZA', opts)}`;
+  return { start: monthStart, end: monthEnd, label };
 }
 
 export function getPrevPayCycle(cycleStartStr) {

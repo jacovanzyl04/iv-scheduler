@@ -5,6 +5,7 @@ import {
   getPayCycleForDate,
   getPayCycleRange,
   getWeekKeysForPayCycle,
+  getMonthlyRangeForCycle,
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
@@ -37,7 +38,27 @@ export default function MonthlyHours({ staff, schedules }) {
   };
 
   const cycleRange = useMemo(() => getPayCycleRange(currentCycle), [currentCycle]);
-  const weekKeys = useMemo(() => getWeekKeysForPayCycle(currentCycle), [currentCycle]);
+  const monthlyRange = useMemo(() => getMonthlyRangeForCycle(currentCycle), [currentCycle]);
+
+  // Week keys covering the union of standard and monthly ranges
+  const weekKeys = useMemo(() => {
+    const stdKeys = getWeekKeysForPayCycle(currentCycle);
+    // Add any extra weeks needed for monthly range
+    const { start: mStart, end: mEnd } = monthlyRange;
+    const allKeys = new Set(stdKeys);
+    const current = new Date(mStart);
+    const dow = current.getDay();
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    current.setDate(current.getDate() + mondayOffset);
+    while (current <= mEnd) {
+      const yr = current.getFullYear();
+      const mo = String(current.getMonth() + 1).padStart(2, '0');
+      const dy = String(current.getDate()).padStart(2, '0');
+      allKeys.add(`${yr}-${mo}-${dy}`);
+      current.setDate(current.getDate() + 7);
+    }
+    return [...allKeys].sort();
+  }, [currentCycle, monthlyRange]);
 
   const goToPrevCycle = () => setCurrentCycle(prev => getPrevPayCycle(prev));
   const goToNextCycle = () => setCurrentCycle(prev => getNextPayCycle(prev));
@@ -45,13 +66,28 @@ export default function MonthlyHours({ staff, schedules }) {
 
   const scheduleStaff = staff.filter(s => isScheduleRole(s.role));
 
+  // Build per-staff date range lookup
+  const staffRanges = useMemo(() => {
+    const ranges = {};
+    scheduleStaff.forEach(member => {
+      if (member.payCycleType === 'monthly') {
+        ranges[member.id] = monthlyRange;
+      } else {
+        ranges[member.id] = cycleRange;
+      }
+    });
+    return ranges;
+  }, [scheduleStaff, cycleRange, monthlyRange]);
+
   const monthlyData = useMemo(() => {
-    const { start, end } = cycleRange;
     const data = {};
 
     scheduleStaff.forEach(member => {
+      const range = staffRanges[member.id];
       data[member.id] = {
         name: member.name, role: member.role, employmentType: member.employmentType,
+        payCycleType: member.payCycleType || 'standard',
+        cycleLabel: range.label,
         target: member.monthlyHoursTarget, totalHours: 0, totalShifts: 0,
         weeklyBreakdown: [], weekdayCount: 0, weekdayHours: 0,
         saturdayCount: 0, saturdayHours: 0, sundayCount: 0, sundayHours: 0,
@@ -71,7 +107,6 @@ export default function MonthlyHours({ staff, schedules }) {
         const weekStart = new Date(weekKey + 'T12:00:00');
         const dayDate = new Date(weekStart);
         dayDate.setDate(dayDate.getDate() + dayIndex);
-        if (dayDate < start || dayDate > end) return;
 
         const dayShifts = {};
         BRANCHES.forEach(branch => {
@@ -79,13 +114,15 @@ export default function MonthlyHours({ staff, schedules }) {
           if (!cell) return;
           const defaultHrs = getShiftHours(branch.id, day);
           [...(cell.nurses || []), ...(cell.receptionists || [])].forEach(person => {
-            if (weekHours[person.id]) {
-              if (!dayShifts[person.id]) dayShifts[person.id] = { branches: [], totalHours: 0 };
-              let shiftHrs = defaultHrs;
-              if (person.shiftStart && person.shiftEnd) shiftHrs = hoursBetween(person.shiftStart, person.shiftEnd);
-              dayShifts[person.id].branches.push(branch.id);
-              dayShifts[person.id].totalHours += shiftHrs;
-            }
+            if (!weekHours[person.id]) return;
+            // Per-staff date range check
+            const range = staffRanges[person.id];
+            if (!range || dayDate < range.start || dayDate > range.end) return;
+            if (!dayShifts[person.id]) dayShifts[person.id] = { branches: [], totalHours: 0 };
+            let shiftHrs = defaultHrs;
+            if (person.shiftStart && person.shiftEnd) shiftHrs = hoursBetween(person.shiftStart, person.shiftEnd);
+            dayShifts[person.id].branches.push(branch.id);
+            dayShifts[person.id].totalHours += shiftHrs;
           });
         });
 
@@ -109,7 +146,7 @@ export default function MonthlyHours({ staff, schedules }) {
     });
 
     return data;
-  }, [scheduleStaff, schedules, currentCycle, cycleRange, weekKeys]);
+  }, [scheduleStaff, schedules, currentCycle, cycleRange, monthlyRange, weekKeys, staffRanges]);
 
   const permanentStaff = scheduleStaff.filter(s => s.employmentType === 'permanent');
   const otherStaff = scheduleStaff.filter(s => s.employmentType !== 'permanent');
@@ -145,6 +182,7 @@ export default function MonthlyHours({ staff, schedules }) {
               <div className="flex gap-1.5 mt-0.5">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${info.role === 'nurse' ? 'bg-blue-500/10 text-blue-400' : 'bg-pink-500/10 text-pink-400'}`}>{info.role}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${info.employmentType === 'permanent' ? 'bg-green-500/10 text-green-400' : 'bg-d4l-raised text-d4l-dim'}`}>{info.employmentType}</span>
+                {info.payCycleType === 'monthly' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400" title={info.cycleLabel}>monthly</span>}
               </div>
             </div>
           </div>

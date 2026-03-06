@@ -127,7 +127,16 @@ export default function App() {
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.STAFF, (data) => {
       fromFirebase.current = true;
-      setStaff(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      // Merge payCycleType from defaults for staff that have it
+      const merged = arr.map(s => {
+        if (!s.payCycleType) {
+          const def = INITIAL_STAFF.find(d => d.id === s.id);
+          if (def?.payCycleType) return { ...s, payCycleType: def.payCycleType };
+        }
+        return s;
+      });
+      setStaff(merged);
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.STAFF)));
 

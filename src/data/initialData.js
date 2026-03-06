@@ -128,6 +128,7 @@ export const INITIAL_STAFF = [
     availableDays: null,
     priority: false,
     monthlyHoursTarget: 0, // TBD - user will update
+    payCycleType: 'monthly', // 1st to last day of month
     minShiftsPerWeek: null,
     color: 'pink',
     notes: 'Permanent. Main branch Rosebank, can travel if needed. Hours target TBD.',
@@ -313,6 +314,7 @@ export const INITIAL_STAFF = [
     availableDays: null,
     priority: true,
     monthlyHoursTarget: 0, // TBD
+    payCycleType: 'monthly', // 1st to last day of month
     minShiftsPerWeek: null,
     color: 'red',
     notes: 'Permanent. All branches. Main: Parkview & Clinic. Gets all shifts requested.',
