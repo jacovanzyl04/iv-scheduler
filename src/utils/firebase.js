@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue } from 'firebase/database';
+import { getDatabase, ref, set, remove, onValue } from 'firebase/database';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail, updateEmail, updatePassword } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -25,5 +25,5 @@ if (isConfigured) {
   auth = getAuth(app);
 }
 
-export { app, db, ref, set, onValue, auth, isConfigured };
+export { app, db, ref, set, remove, onValue, auth, isConfigured };
 export { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail, updateEmail, updatePassword };

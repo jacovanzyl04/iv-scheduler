@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut } from 'firebase/auth';
-import { app, db, ref, set, onValue, auth, sendPasswordResetEmail, updateEmail, updatePassword } from '../utils/firebase';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut, deleteUser } from 'firebase/auth';
+import { app, db, ref, set, remove, onValue, auth, sendPasswordResetEmail, updatePassword } from '../utils/firebase';
 import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil } from 'lucide-react';
 
 // Secondary app for creating users without logging out admin
@@ -156,19 +156,29 @@ export default function AccountManager({ staff }) {
     try {
       if (!editCurrentPassword) throw new Error('Current password is required.');
       const secAuth = getSecondaryAuth();
-      const credential = await firebaseSignIn(secAuth, editingUser.email, editCurrentPassword);
-      const user = credential.user;
       const emailChanged = editEmail !== editingUser.email;
       const passwordChanged = editPassword.length > 0;
-      if (passwordChanged) {
-        if (editPassword.length < 6) throw new Error('New password must be at least 6 characters.');
-        await updatePassword(user, editPassword);
-      }
+      if (passwordChanged && editPassword.length < 6) throw new Error('New password must be at least 6 characters.');
+
       if (emailChanged) {
-        await updateEmail(user, editEmail);
-        await set(ref(db, `users/${editingUser.uid}/email`), editEmail);
+        // Email changed: delete old auth account, create new one with new email
+        const credential = await firebaseSignIn(secAuth, editingUser.email, editCurrentPassword);
+        await deleteUser(credential.user);
+        const newPassword = passwordChanged ? editPassword : editCurrentPassword;
+        const newCredential = await createUserWithEmailAndPassword(secAuth, editEmail, newPassword);
+        const newUid = newCredential.user.uid;
+        // Migrate RTDB data to new UID
+        const userData = { email: editEmail, role: editingUser.role, staffId: editingUser.staffId, name: editingUser.name, createdAt: editingUser.createdAt };
+        await set(ref(db, `users/${newUid}`), userData);
+        await remove(ref(db, `users/${editingUser.uid}`));
+        await firebaseSignOut(secAuth);
+      } else if (passwordChanged) {
+        // Only password changed: sign in and update
+        const credential = await firebaseSignIn(secAuth, editingUser.email, editCurrentPassword);
+        await updatePassword(credential.user, editPassword);
+        await firebaseSignOut(secAuth);
       }
-      await firebaseSignOut(secAuth);
+
       setSuccess(`Account for ${editingUser.name} updated successfully.${passwordChanged ? ' Password changed.' : ''}${emailChanged ? ` Email changed to ${editEmail}.` : ''}`);
       setEditingUser(null);
     } catch (err) {
