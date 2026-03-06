@@ -620,19 +620,87 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
       startY: 40,
       head: [['Vial Name', 'Batch #', 'Exp Date', 'Qty', 'Min', 'Status']],
       body: rows,
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 9, cellPadding: 3, textColor: [30, 30, 30] },
       headStyles: { fillColor: [30, 30, 26], textColor: [232, 232, 0], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [20, 20, 18] },
+      bodyStyles: { fillColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 245, 240] },
       columnStyles: { 0: { cellWidth: 50 }, 3: { halign: 'center' }, 4: { halign: 'center' } },
       didParseCell: (data) => {
         if (data.section === 'body' && data.column.index === 5) {
           const text = data.cell.text[0] || '';
-          if (text.includes('Expired') || text.includes('Out of Stock')) data.cell.styles.textColor = [239, 68, 68];
-          else if (text.includes('Expiring') || text.includes('Low')) data.cell.styles.textColor = [249, 115, 22];
-          else if (text.includes('Check')) data.cell.styles.textColor = [245, 158, 11];
+          if (text.includes('Expired') || text.includes('Out of Stock')) data.cell.styles.textColor = [220, 38, 38];
+          else if (text.includes('Expiring') || text.includes('Low')) data.cell.styles.textColor = [217, 119, 6];
+          else if (text.includes('Check')) data.cell.styles.textColor = [180, 83, 9];
+          else data.cell.styles.textColor = [22, 163, 74];
         }
       },
     });
+
+    // ── Build needed & low lists ──
+    const needed = [];
+    const low = [];
+    vials.forEach(vial => {
+      const raw = branchStock[vial.id];
+      const item = migrateToBatches(raw);
+      const totalQty = getTotalQuantity(item.batches);
+      if (totalQty < 1) needed.push({ name: vial.name, qty: totalQty });
+      else if (totalQty < vial.minQty) low.push({ name: vial.name, qty: totalQty });
+    });
+
+    let bulletY = doc.lastAutoTable.finalY + 14;
+
+    // ── Stock Needed (qty 0) ──
+    if (needed.length > 0) {
+      if (bulletY > 255) { doc.addPage(); bulletY = 20; }
+      doc.setFillColor(220, 38, 38);
+      doc.roundedRect(14, bulletY, 182, 8, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`STOCK NEEDED — ${needed.length} item${needed.length > 1 ? 's' : ''}`, 105, bulletY + 5.5, { align: 'center' });
+      bulletY += 14;
+
+      doc.setFontSize(10);
+      needed.forEach(v => {
+        if (bulletY > 275) { doc.addPage(); bulletY = 20; }
+        doc.setTextColor(220, 38, 38);
+        doc.text('\u2022', 18, bulletY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        doc.text(v.name, 24, bulletY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 38, 38);
+        doc.text(`(${v.qty})`, 24 + doc.getTextWidth(v.name + ' '), bulletY);
+        bulletY += 6;
+      });
+      bulletY += 8;
+    }
+
+    // ── Running Low (qty > 0 but below min) ──
+    if (low.length > 0) {
+      if (bulletY > 255) { doc.addPage(); bulletY = 20; }
+      doc.setFillColor(217, 119, 6);
+      doc.roundedRect(14, bulletY, 182, 8, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`RUNNING LOW — ${low.length} item${low.length > 1 ? 's' : ''}`, 105, bulletY + 5.5, { align: 'center' });
+      bulletY += 14;
+
+      doc.setFontSize(10);
+      low.forEach(v => {
+        if (bulletY > 275) { doc.addPage(); bulletY = 20; }
+        doc.setTextColor(217, 119, 6);
+        doc.text('\u2022', 18, bulletY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        doc.text(v.name, 24, bulletY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(217, 119, 6);
+        doc.text(`(${v.qty})`, 24 + doc.getTextWidth(v.name + ' '), bulletY);
+        bulletY += 6;
+      });
+    }
 
     doc.save(`Drip4Life_VialStock_${branch?.name || selectedBranch}_${new Date().toISOString().split('T')[0]}.pdf`);
   }
