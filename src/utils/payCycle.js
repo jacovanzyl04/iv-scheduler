@@ -70,7 +70,7 @@ export function getWeekKeysForPayCycle(cycleStartStr) {
 
 /**
  * Scan schedules for all staff who have at least 1 shift in the pay cycle.
- * Deducts lunch per person per day (1h normally, 0.5h Sunday at Parkview).
+ * Deducts lunch per person per day (<5h=0, 5-7h=0.5h, 7h+=1h).
  * Returns { [staffId]: { name, role, employmentType, shifts, hours } }
  */
 export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
@@ -127,7 +127,7 @@ export function getScheduledStaffForPayCycle(schedules, staff, cycleStartStr) {
           };
         }
 
-        const lunch = getLunchDeduction(day, data.branches);
+        const lunch = getLunchDeduction(day, data.branches, data.totalHours);
         result[personId].shifts += data.branches.length;
         result[personId].hours += data.totalHours - lunch;
       });

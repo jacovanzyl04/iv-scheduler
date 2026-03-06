@@ -90,7 +90,7 @@ export default function MonthlyHours({ staff, schedules }) {
         });
 
         Object.entries(dayShifts).forEach(([personId, shiftData]) => {
-          const lunch = getLunchDeduction(day, shiftData.branches);
+          const lunch = getLunchDeduction(day, shiftData.branches, shiftData.totalHours);
           const netHours = shiftData.totalHours - lunch;
           weekHours[personId].hours += netHours;
           weekHours[personId].shifts += shiftData.branches.length;
