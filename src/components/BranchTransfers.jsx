@@ -7,7 +7,7 @@ import { useIsMobile } from './Sidebar';
 import {
   ArrowRightLeft, ArrowRight, Plus, History, ChevronLeft,
   FileSpreadsheet, FileText, X, Search, Package, ShoppingCart,
-  Check, Filter, Truck
+  Check, Filter, Truck, Trash2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -530,6 +530,7 @@ export default function BranchTransfers({
   const [filterType, setFilterType] = useState('all'); // 'all' | 'vials' | 'consumables'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTransfer, setSelectedTransfer] = useState(null); // for viewing details
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null); // transfer ID pending delete confirmation
 
   const isAdmin = userRole === 'admin';
   const transfers = branchTransfers?.history || [];
@@ -591,6 +592,15 @@ export default function BranchTransfers({
       ...prev,
       history: [...(prev.history || []), transfer],
     }));
+  };
+
+  const handleDeleteTransfer = (transferId) => {
+    setBranchTransfers(prev => ({
+      ...prev,
+      history: (prev.history || []).filter(t => t.id !== transferId),
+    }));
+    setDeleteConfirmId(null);
+    setSelectedTransfer(null);
   };
 
   // Export PDF
@@ -684,6 +694,7 @@ export default function BranchTransfers({
   const TransferDetailModal = ({ transfer, onClose }) => {
     const fromB = BRANCHES.find(b => b.id === transfer.fromBranch);
     const toB = BRANCHES.find(b => b.id === transfer.toBranch);
+    const isConfirmingDelete = deleteConfirmId === transfer.id;
 
     const content = (
       <div className={`${isMobile ? 'fixed inset-0 z-[200] bg-d4l-bg flex flex-col' : 'fixed inset-0 z-[200] flex items-center justify-center'}`}>
@@ -692,10 +703,43 @@ export default function BranchTransfers({
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-d4l-border shrink-0">
             <h2 className="text-lg font-bold text-d4l-text font-[Bebas_Neue] tracking-wider">Transfer Details</h2>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-d4l-hover text-d4l-muted">
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {isAdmin && (
+                <button
+                  onClick={() => setDeleteConfirmId(transfer.id)}
+                  className="p-2 rounded-lg hover:bg-red-500/15 text-d4l-muted hover:text-red-400 transition-colors"
+                  title="Delete transfer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <button onClick={onClose} className="p-2 rounded-lg hover:bg-d4l-hover text-d4l-muted">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
+
+          {/* Delete confirmation banner */}
+          {isConfirmingDelete && (
+            <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/30 shrink-0">
+              <p className="text-sm text-red-400 font-medium mb-2">Delete this transfer?</p>
+              <p className="text-xs text-d4l-dim mb-3">This action cannot be undone.</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDeleteTransfer(transfer.id)}
+                  className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-500 transition-colors"
+                >
+                  Yes, Delete
+                </button>
+                <button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-4 py-1.5 bg-d4l-raised border border-d4l-border text-xs text-d4l-text2 rounded-lg hover:bg-d4l-hover transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {/* Branch direction */}
@@ -773,9 +817,9 @@ export default function BranchTransfers({
     const totalQty = transfer.items?.reduce((s, i) => s + i.quantity, 0) || 0;
 
     return (
-      <button
+      <div
         onClick={() => setSelectedTransfer(transfer)}
-        className="w-full text-left bg-d4l-surface border border-d4l-border rounded-xl p-3 hover:border-d4l-gold/30 transition-all"
+        className="w-full text-left bg-d4l-surface border border-d4l-border rounded-xl p-3 hover:border-d4l-gold/30 transition-all cursor-pointer"
       >
         {/* Top row: branches + arrow */}
         <div className="flex items-center gap-2 mb-2">
@@ -799,9 +843,37 @@ export default function BranchTransfers({
         {/* Bottom row: meta */}
         <div className="flex items-center justify-between text-[11px] text-d4l-dim">
           <span>{formatDateTime(transfer.timestamp)}</span>
-          <span>{totalQty} item{totalQty !== 1 ? 's' : ''} · {transfer.submittedBy}</span>
+          <div className="flex items-center gap-2">
+            <span>{totalQty} item{totalQty !== 1 ? 's' : ''} · {transfer.submittedBy}</span>
+            {isAdmin && (
+              deleteConfirmId === transfer.id ? (
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteTransfer(transfer.id); }}
+                    className="px-2 py-0.5 bg-red-600 text-white text-[11px] font-bold rounded hover:bg-red-500 transition-colors"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }}
+                    className="px-2 py-0.5 bg-d4l-raised border border-d4l-border text-[11px] text-d4l-text2 rounded hover:bg-d4l-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(transfer.id); }}
+                  className="p-1 rounded hover:bg-red-500/15 text-d4l-dim hover:text-red-400 transition-colors"
+                  title="Delete transfer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )
+            )}
+          </div>
         </div>
-      </button>
+      </div>
     );
   };
 
@@ -921,6 +993,7 @@ export default function BranchTransfers({
                 <th className="text-left text-xs text-d4l-muted font-medium px-4 py-3">Items</th>
                 <th className="text-center text-xs text-d4l-muted font-medium px-4 py-3">Qty</th>
                 <th className="text-left text-xs text-d4l-muted font-medium px-4 py-3">By</th>
+                {isAdmin && <th className="text-center text-xs text-d4l-muted font-medium px-2 py-3"></th>}
               </tr>
             </thead>
             <tbody>
@@ -968,6 +1041,34 @@ export default function BranchTransfers({
                     <td className="px-4 py-3">
                       <span className="text-xs text-d4l-text2">{transfer.submittedBy}</span>
                     </td>
+                    {isAdmin && (
+                      <td className="px-2 py-3 text-center">
+                        {deleteConfirmId === transfer.id ? (
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTransfer(transfer.id); }}
+                              className="px-2 py-1 bg-red-600 text-white text-[11px] font-bold rounded hover:bg-red-500 transition-colors"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(null); }}
+                              className="px-2 py-1 bg-d4l-raised border border-d4l-border text-[11px] text-d4l-text2 rounded hover:bg-d4l-hover transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(transfer.id); }}
+                            className="p-1.5 rounded-lg hover:bg-red-500/15 text-d4l-dim hover:text-red-400 transition-colors"
+                            title="Delete transfer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
