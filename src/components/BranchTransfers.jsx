@@ -330,7 +330,8 @@ function NewTransferModal({ onClose, onSubmit, vialStock, consumablesStock, staf
                   return (
                     <div
                       key={item.id}
-                      className={`rounded-xl border p-3 transition-all ${
+                      onClick={() => toggleItem(item)}
+                      className={`rounded-xl border p-3 transition-all cursor-pointer ${
                         selected
                           ? 'border-d4l-gold/40 bg-d4l-gold/5'
                           : 'border-d4l-border bg-d4l-raised hover:border-d4l-gold/20'
@@ -338,8 +339,7 @@ function NewTransferModal({ onClose, onSubmit, vialStock, consumablesStock, staf
                     >
                       <div className="flex items-center gap-3">
                         {/* Checkbox */}
-                        <button
-                          onClick={() => toggleItem(item)}
+                        <div
                           className={`w-5 h-5 rounded-md border shrink-0 flex items-center justify-center transition-all ${
                             selected
                               ? 'bg-d4l-gold border-d4l-gold'
@@ -347,7 +347,7 @@ function NewTransferModal({ onClose, onSubmit, vialStock, consumablesStock, staf
                           }`}
                         >
                           {selected && <Check className="w-3 h-3 text-black" />}
-                        </button>
+                        </div>
 
                         {/* Item info */}
                         <div className="flex-1 min-w-0">
@@ -368,7 +368,7 @@ function NewTransferModal({ onClose, onSubmit, vialStock, consumablesStock, staf
 
                         {/* Quantity stepper (only if selected) */}
                         {selected && (
-                          <div className="flex items-center gap-0 shrink-0">
+                          <div className="flex items-center gap-0 shrink-0" onClick={e => e.stopPropagation()}>
                             <button
                               onClick={() => updateQuantity(item.id, selected.quantity - 1)}
                               className="w-8 h-8 rounded-l-lg bg-d4l-hover border border-d4l-border flex items-center justify-center text-d4l-text shrink-0"
