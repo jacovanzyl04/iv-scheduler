@@ -27,6 +27,39 @@ function getExpiryStatus(expiryDate) {
   return { label: 'OK', color: 'green', priority: 4, days: diffDays };
 }
 
+// Migrate old single-batch format to new multi-batch format
+function migrateToBatches(item) {
+  if (!item) return { batches: [], lastUpdated: null, updatedBy: null };
+  if (item.batches) return item;
+  return {
+    batches: (item.batchNumber || item.expiryDate || item.quantity) ? [{
+      id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      batchNumber: item.batchNumber || '',
+      expiryDate: item.expiryDate || '',
+      quantity: Number(item.quantity) || 0,
+    }] : [],
+    lastUpdated: item.lastUpdated || null,
+    updatedBy: item.updatedBy || null,
+  };
+}
+
+// Get worst expiry status across all batches
+function getWorstExpiryStatus(batches) {
+  if (!batches || batches.length === 0) return getExpiryStatus(null);
+  let worst = { priority: 99 };
+  for (const b of batches) {
+    const s = getExpiryStatus(b.expiryDate);
+    if (s.priority < worst.priority) worst = s;
+  }
+  return worst.priority === 99 ? getExpiryStatus(null) : worst;
+}
+
+// Get total quantity across all batches
+function getTotalQuantity(batches) {
+  if (!batches || batches.length === 0) return 0;
+  return batches.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0);
+}
+
 function getStockStatus(quantity, minQty) {
   if (quantity === 0 || quantity === '') return { label: 'Out of Stock', color: 'red' };
   if (quantity < minQty) return { label: 'Low Stock', color: 'amber' };
@@ -84,6 +117,26 @@ function getTodayReport(history, branchId) {
 
 // ── Mobile Edit Modal ─────────────────────────────────────────────
 function MobileEditModal({ vial, editData, setEditData, onSave, onCancel }) {
+  const batches = editData.batches || [];
+  const totalQty = batches.reduce((sum, b) => sum + (Number(b.quantity) || 0), 0);
+
+  const updateBatch = (index, field, value) => {
+    const updated = batches.map((b, i) => i === index ? { ...b, [field]: value } : b);
+    setEditData({ ...editData, batches: updated });
+  };
+
+  const addBatch = () => {
+    setEditData({
+      ...editData,
+      batches: [...batches, { id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, batchNumber: '', expiryDate: '', quantity: '' }],
+    });
+  };
+
+  const removeBatch = (index) => {
+    if (batches.length <= 1) return;
+    setEditData({ ...editData, batches: batches.filter((_, i) => i !== index) });
+  };
+
   return (
     <div className="fixed inset-0 z-[200] bg-d4l-bg flex flex-col">
       {/* Header */}
@@ -95,58 +148,83 @@ function MobileEditModal({ vial, editData, setEditData, onSave, onCancel }) {
           <h2 className="text-lg font-bold text-d4l-text truncate">{vial.name}</h2>
           <p className="text-xs text-d4l-muted">Update stock information</p>
         </div>
+        <div className="text-right shrink-0">
+          <p className="text-lg font-bold text-d4l-gold">{totalQty}</p>
+          <p className="text-[11px] text-d4l-dim">total qty</p>
+        </div>
       </div>
 
-      {/* Form */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-        {/* Batch Number */}
-        <div>
-          <label className="block text-sm font-medium text-d4l-text2 mb-2">Batch Number</label>
-          <input
-            type="text"
-            value={editData.batchNumber}
-            onChange={e => setEditData({ ...editData, batchNumber: e.target.value })}
-            placeholder="Enter batch number"
-            className="w-full px-4 py-4 bg-d4l-surface border border-d4l-border rounded-xl text-base text-d4l-text placeholder:text-d4l-dim focus:border-d4l-gold/40 focus:outline-none"
-          />
-        </div>
+      {/* Batches */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {batches.map((batch, index) => (
+          <div key={batch.id || index} className="bg-d4l-surface border border-d4l-border rounded-xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-d4l-muted uppercase tracking-wider">Batch {index + 1}</p>
+              {batches.length > 1 && (
+                <button onClick={() => removeBatch(index)} className="p-1.5 rounded-lg text-d4l-dim active:text-red-400 active:bg-red-500/10">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
-        {/* Expiry Date */}
-        <div>
-          <label className="block text-sm font-medium text-d4l-text2 mb-2">Expiry Date</label>
-          <input
-            type="date"
-            value={editData.expiryDate}
-            onChange={e => setEditData({ ...editData, expiryDate: e.target.value })}
-            className="w-full px-4 py-4 bg-d4l-surface border border-d4l-border rounded-xl text-base text-d4l-text focus:border-d4l-gold/40 focus:outline-none"
-          />
-        </div>
+            {/* Batch Number */}
+            <div>
+              <label className="block text-xs text-d4l-dim mb-1.5">Batch Number</label>
+              <input
+                type="text"
+                value={batch.batchNumber}
+                onChange={e => updateBatch(index, 'batchNumber', e.target.value)}
+                placeholder="Enter batch number"
+                className="w-full px-3 py-3 bg-d4l-raised border border-d4l-border rounded-xl text-base text-d4l-text placeholder:text-d4l-dim focus:border-d4l-gold/40 focus:outline-none"
+              />
+            </div>
 
-        {/* Quantity with stepper */}
-        <div>
-          <label className="block text-sm font-medium text-d4l-text2 mb-2">Quantity</label>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setEditData({ ...editData, quantity: Math.max(0, (Number(editData.quantity) || 0) - 1) })}
-              className="w-14 h-14 shrink-0 flex items-center justify-center bg-d4l-surface border border-d4l-border rounded-xl text-d4l-text active:bg-d4l-hover"
-            >
-              <Minus className="w-6 h-6" />
-            </button>
-            <input
-              type="number"
-              min="0"
-              value={editData.quantity}
-              onChange={e => setEditData({ ...editData, quantity: e.target.value })}
-              className="flex-1 min-w-0 px-4 py-4 bg-d4l-surface border border-d4l-border rounded-xl text-2xl text-d4l-text text-center font-bold focus:border-d4l-gold/40 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-            <button
-              onClick={() => setEditData({ ...editData, quantity: (Number(editData.quantity) || 0) + 1 })}
-              className="w-14 h-14 shrink-0 flex items-center justify-center bg-d4l-surface border border-d4l-border rounded-xl text-d4l-text active:bg-d4l-hover"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
+            {/* Expiry Date */}
+            <div>
+              <label className="block text-xs text-d4l-dim mb-1.5">Expiry Date</label>
+              <input
+                type="date"
+                value={batch.expiryDate}
+                onChange={e => updateBatch(index, 'expiryDate', e.target.value)}
+                className="w-full px-3 py-3 bg-d4l-raised border border-d4l-border rounded-xl text-base text-d4l-text focus:border-d4l-gold/40 focus:outline-none"
+              />
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <label className="block text-xs text-d4l-dim mb-1.5">Quantity</label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => updateBatch(index, 'quantity', Math.max(0, (Number(batch.quantity) || 0) - 1))}
+                  className="w-12 h-12 shrink-0 flex items-center justify-center bg-d4l-raised border border-d4l-border rounded-xl text-d4l-text active:bg-d4l-hover"
+                >
+                  <Minus className="w-5 h-5" />
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  value={batch.quantity}
+                  onChange={e => updateBatch(index, 'quantity', e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-3 bg-d4l-raised border border-d4l-border rounded-xl text-xl text-d4l-text text-center font-bold focus:border-d4l-gold/40 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  onClick={() => updateBatch(index, 'quantity', (Number(batch.quantity) || 0) + 1)}
+                  className="w-12 h-12 shrink-0 flex items-center justify-center bg-d4l-raised border border-d4l-border rounded-xl text-d4l-text active:bg-d4l-hover"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
+
+        {/* Add Batch button */}
+        <button
+          onClick={addBatch}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3.5 border-2 border-dashed border-d4l-border rounded-xl text-sm font-medium text-d4l-muted active:border-d4l-gold/40 active:text-d4l-gold"
+        >
+          <Plus className="w-4 h-4" /> Add Another Batch
+        </button>
       </div>
 
       {/* Bottom actions */}
@@ -191,24 +269,50 @@ function MobileVialCard({ vial, onEdit, isAdmin, onRemove }) {
       {/* Details grid */}
       <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
-          <p className="text-[11px] text-d4l-dim uppercase tracking-wider mb-0.5">Batch</p>
-          <p className="text-sm text-d4l-text2 font-medium">{vial.batchNumber || '—'}</p>
+          <p className="text-[11px] text-d4l-dim uppercase tracking-wider mb-0.5">Batch{vial.batches?.length > 1 ? 'es' : ''}</p>
+          {(!vial.batches || vial.batches.length === 0) ? (
+            <p className="text-sm text-d4l-text2 font-medium">—</p>
+          ) : vial.batches.length === 1 ? (
+            <p className="text-sm text-d4l-text2 font-medium">{vial.batches[0].batchNumber || '—'}</p>
+          ) : (
+            <p className="text-sm text-d4l-text2 font-medium">{vial.batches.length} batches</p>
+          )}
         </div>
         <div>
           <p className="text-[11px] text-d4l-dim uppercase tracking-wider mb-0.5">Expiry</p>
-          <p className="text-sm text-d4l-text2 font-medium">{formatDate(vial.expiryDate)}</p>
-          {vial.expiryStatus.days !== undefined && vial.expiryStatus.color !== 'green' && (
-            <p className={`text-[11px] font-medium ${vial.expiryStatus.color === 'red' ? 'text-red-400' : 'text-orange-400'}`}>
-              {vial.expiryStatus.days < 0 ? `${Math.abs(vial.expiryStatus.days)}d overdue` : `${vial.expiryStatus.days}d left`}
-            </p>
+          {(!vial.batches || vial.batches.length === 0) ? (
+            <p className="text-sm text-d4l-text2 font-medium">—</p>
+          ) : vial.batches.length === 1 ? (
+            <>
+              <p className="text-sm text-d4l-text2 font-medium">{formatDate(vial.batches[0].expiryDate)}</p>
+              {vial.expiryStatus.days !== undefined && vial.expiryStatus.color !== 'green' && (
+                <p className={`text-[11px] font-medium ${vial.expiryStatus.color === 'red' ? 'text-red-400' : 'text-orange-400'}`}>
+                  {vial.expiryStatus.days < 0 ? `${Math.abs(vial.expiryStatus.days)}d overdue` : `${vial.expiryStatus.days}d left`}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="space-y-0.5">
+              {vial.batches.map((b, i) => {
+                const s = getExpiryStatus(b.expiryDate);
+                return (
+                  <p key={i} className={`text-[11px] font-medium ${s.color === 'red' ? 'text-red-400' : s.color === 'orange' ? 'text-orange-400' : 'text-d4l-text2'}`}>
+                    {formatDate(b.expiryDate)}
+                  </p>
+                );
+              })}
+            </div>
           )}
         </div>
         <div>
           <p className="text-[11px] text-d4l-dim uppercase tracking-wider mb-0.5">Qty</p>
-          <p className={`text-lg font-bold ${(Number(vial.quantity) || 0) < vial.minQty ? 'text-amber-400' : 'text-d4l-text'}`}>
-            {vial.quantity ?? '—'}
+          <p className={`text-lg font-bold ${vial.totalQuantity < vial.minQty ? 'text-amber-400' : 'text-d4l-text'}`}>
+            {vial.totalQuantity}
             <span className="text-[11px] text-d4l-dim font-normal"> / {vial.minQty}</span>
           </p>
+          {vial.batches?.length > 1 && (
+            <p className="text-[10px] text-d4l-dim">{vial.batches.map(b => b.quantity).join(' + ')}</p>
+          )}
         </div>
       </div>
 
@@ -268,16 +372,17 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     let outOfStock = 0;
 
     vials.forEach(vial => {
-      const item = branchStock[vial.id];
-      if (!item) {
+      const raw = branchStock[vial.id];
+      const item = migrateToBatches(raw);
+      if (item.batches.length === 0) {
         outOfStock++;
         return;
       }
-      const expStatus = getExpiryStatus(item.expiryDate);
+      const expStatus = getWorstExpiryStatus(item.batches);
       if (expStatus.color === 'red') expired++;
       else if (expStatus.color === 'orange') expiringSoon++;
 
-      const qty = Number(item.quantity) || 0;
+      const qty = getTotalQuantity(item.batches);
       if (qty === 0) outOfStock++;
       else if (qty < vial.minQty) lowStock++;
     });
@@ -288,15 +393,28 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
   // Filtered and sorted vials for display
   const displayVials = useMemo(() => {
     let filtered = vials.map(vial => {
-      const item = branchStock[vial.id] || {};
-      const expStatus = getExpiryStatus(item.expiryDate);
-      const stkStatus = getStockStatus(Number(item.quantity) || 0, vial.minQty);
-      return { ...vial, ...item, expiryStatus: expStatus, stockStatus: stkStatus };
+      const raw = branchStock[vial.id];
+      const item = migrateToBatches(raw);
+      const totalQty = getTotalQuantity(item.batches);
+      const expStatus = getWorstExpiryStatus(item.batches);
+      const stkStatus = getStockStatus(totalQty, vial.minQty);
+      return {
+        ...vial,
+        batches: item.batches,
+        totalQuantity: totalQty,
+        lastUpdated: item.lastUpdated,
+        updatedBy: item.updatedBy,
+        expiryStatus: expStatus,
+        stockStatus: stkStatus,
+      };
     });
 
     if (searchFilter) {
       const q = searchFilter.toLowerCase();
-      filtered = filtered.filter(v => v.name.toLowerCase().includes(q) || (v.batchNumber || '').toLowerCase().includes(q));
+      filtered = filtered.filter(v =>
+        v.name.toLowerCase().includes(q) ||
+        v.batches.some(b => (b.batchNumber || '').toLowerCase().includes(q))
+      );
     }
 
     if (statusFilter === 'expired') filtered = filtered.filter(v => v.expiryStatus.color === 'red');
@@ -318,27 +436,40 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
   }, [history, selectedBranch]);
 
   function startEdit(vialId) {
-    const item = branchStock[vialId] || {};
+    const raw = branchStock[vialId];
+    const item = migrateToBatches(raw);
     setEditingRow(vialId);
-    setEditData({
-      batchNumber: item.batchNumber || '',
-      expiryDate: item.expiryDate || '',
-      quantity: item.quantity ?? '',
-    });
+    // If no batches, start with one empty batch row
+    const batches = item.batches.length > 0
+      ? item.batches.map(b => ({ ...b }))
+      : [{ id: `b-${Date.now()}`, batchNumber: '', expiryDate: '', quantity: '' }];
+    setEditData({ batches });
   }
 
   function saveEdit(vialId) {
     const now = new Date().toISOString().split('T')[0];
     const userName = staffName || currentUser?.email?.split('@')[0] || 'Unknown';
 
+    // Filter out completely empty batches
+    const cleanBatches = editData.batches
+      .filter(b => b.batchNumber || b.expiryDate || b.quantity)
+      .map(b => ({
+        id: b.id || `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        batchNumber: b.batchNumber || '',
+        expiryDate: b.expiryDate || '',
+        quantity: Number(b.quantity) || 0,
+      }));
+
+    const previousItem = migrateToBatches(branchStock[vialId]);
+    const previousTotalQty = getTotalQuantity(previousItem.batches);
+    const newTotalQty = getTotalQuantity(cleanBatches);
+
     const updatedStock = {
       ...stock,
       [selectedBranch]: {
         ...branchStock,
         [vialId]: {
-          batchNumber: editData.batchNumber,
-          expiryDate: editData.expiryDate,
-          quantity: Number(editData.quantity) || 0,
+          batches: cleanBatches,
           lastUpdated: now,
           updatedBy: userName,
         }
@@ -357,10 +488,8 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
         vialId,
         vialName: vials.find(v => v.id === vialId)?.name || vialId,
         action: branchStock[vialId] ? 'update' : 'add',
-        previousQty: branchStock[vialId]?.quantity ?? null,
-        newQty: Number(editData.quantity) || 0,
-        previousExpiry: branchStock[vialId]?.expiryDate || null,
-        newExpiry: editData.expiryDate || null,
+        previousQty: previousTotalQty,
+        newQty: newTotalQty,
         timestamp: new Date().toISOString(),
       }],
     });
@@ -380,12 +509,12 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
 
     const reportItems = {};
     vials.forEach(vial => {
-      const item = branchStock[vial.id];
-      if (item) {
+      const raw = branchStock[vial.id];
+      const item = migrateToBatches(raw);
+      if (item.batches.length > 0) {
         reportItems[vial.id] = {
-          batchNumber: item.batchNumber || '',
-          expiryDate: item.expiryDate || '',
-          quantity: Number(item.quantity) || 0,
+          batches: item.batches,
+          quantity: getTotalQuantity(item.batches),
         };
       }
     });
@@ -470,14 +599,18 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     doc.text(today, 196, 26, { align: 'right' });
 
     const rows = vials.map(vial => {
-      const item = branchStock[vial.id] || {};
-      const expStatus = getExpiryStatus(item.expiryDate);
-      const stkStatus = getStockStatus(Number(item.quantity) || 0, vial.minQty);
+      const raw = branchStock[vial.id];
+      const item = migrateToBatches(raw);
+      const totalQty = getTotalQuantity(item.batches);
+      const expStatus = getWorstExpiryStatus(item.batches);
+      const stkStatus = getStockStatus(totalQty, vial.minQty);
+      const batchStr = item.batches.length === 0 ? '—' : item.batches.map(b => b.batchNumber || '—').join('\n');
+      const expiryStr = item.batches.length === 0 ? '—' : item.batches.map(b => b.expiryDate ? formatDate(b.expiryDate) : '—').join('\n');
       return [
         vial.name,
-        item.batchNumber || '—',
-        item.expiryDate ? formatDate(item.expiryDate) : '—',
-        item.quantity ?? '—',
+        batchStr,
+        expiryStr,
+        totalQty,
         vial.minQty,
         `${expStatus.label}${stkStatus.color !== 'green' ? ' / ' + stkStatus.label : ''}`,
       ];
@@ -527,15 +660,19 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     ]];
 
     vials.forEach(vial => {
-      const item = branchStock[vial.id] || {};
-      const expStatus = getExpiryStatus(item.expiryDate);
-      const stkStatus = getStockStatus(Number(item.quantity) || 0, vial.minQty);
+      const raw = branchStock[vial.id];
+      const item = migrateToBatches(raw);
+      const totalQty = getTotalQuantity(item.batches);
+      const expStatus = getWorstExpiryStatus(item.batches);
+      const stkStatus = getStockStatus(totalQty, vial.minQty);
       const statusText = `${expStatus.label}${stkStatus.color !== 'green' ? ' / ' + stkStatus.label : ''}`;
       const statusColor = (expStatus.color === 'red' || stkStatus.color === 'red') ? 'EF4444' : (expStatus.color === 'orange' || stkStatus.color === 'amber') ? 'F97316' : '22C55E';
+      const batchStr = item.batches.map(b => b.batchNumber || '').join(', ');
+      const expiryStr = item.batches.map(b => b.expiryDate || '').join(', ');
 
       rows.push([
-        { v: vial.name, s: cellStyle }, { v: item.batchNumber || '', s: cellStyle }, { v: item.expiryDate || '', s: cellStyle },
-        { v: Number(item.quantity) || 0, s: { ...cellStyle, alignment: { horizontal: 'center', vertical: 'center' } } },
+        { v: vial.name, s: cellStyle }, { v: batchStr, s: cellStyle }, { v: expiryStr, s: cellStyle },
+        { v: totalQty, s: { ...cellStyle, alignment: { horizontal: 'center', vertical: 'center' } } },
         { v: vial.minQty, s: { ...cellStyle, alignment: { horizontal: 'center', vertical: 'center' } } },
         { v: statusText, s: { ...cellStyle, font: { color: { rgb: statusColor } } } },
         { v: item.lastUpdated || '', s: cellStyle }, { v: item.updatedBy || '', s: cellStyle },
@@ -794,35 +931,85 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
                         </td>
                         <td className="px-4 py-3">
                           {isEditing ? (
-                            <input type="text" value={editData.batchNumber} onChange={e => setEditData({ ...editData, batchNumber: e.target.value })}
-                              className="w-full px-2 py-1 bg-d4l-raised border border-d4l-border rounded text-sm text-d4l-text focus:border-d4l-gold/40 focus:outline-none" placeholder="Batch #" />
+                            <div className="space-y-1">
+                              {(editData.batches || []).map((batch, bi) => (
+                                <div key={batch.id || bi} className="flex items-center gap-1">
+                                  <input type="text" value={batch.batchNumber} onChange={e => {
+                                    const updated = editData.batches.map((b, i) => i === bi ? { ...b, batchNumber: e.target.value } : b);
+                                    setEditData({ ...editData, batches: updated });
+                                  }}
+                                    className="w-full px-2 py-1 bg-d4l-raised border border-d4l-border rounded text-sm text-d4l-text focus:border-d4l-gold/40 focus:outline-none" placeholder="Batch #" />
+                                  {editData.batches.length > 1 && (
+                                    <button onClick={() => setEditData({ ...editData, batches: editData.batches.filter((_, i) => i !== bi) })}
+                                      className="p-0.5 text-d4l-dim hover:text-red-400 shrink-0"><Trash2 className="w-3 h-3" /></button>
+                                  )}
+                                </div>
+                              ))}
+                              <button onClick={() => setEditData({ ...editData, batches: [...(editData.batches || []), { id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, batchNumber: '', expiryDate: '', quantity: '' }] })}
+                                className="text-[11px] text-d4l-gold hover:underline">+ Add batch</button>
+                            </div>
                           ) : (
-                            <span className="text-d4l-text2">{vial.batchNumber || '—'}</span>
+                            <div className="space-y-0.5">
+                              {(!vial.batches || vial.batches.length === 0) ? (
+                                <span className="text-d4l-text2">—</span>
+                              ) : vial.batches.map((b, i) => (
+                                <span key={i} className="block text-d4l-text2 text-sm">{b.batchNumber || '—'}</span>
+                              ))}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           {isEditing ? (
-                            <input type="date" value={editData.expiryDate} onChange={e => setEditData({ ...editData, expiryDate: e.target.value })}
-                              className="w-full px-2 py-1 bg-d4l-raised border border-d4l-border rounded text-sm text-d4l-text focus:border-d4l-gold/40 focus:outline-none" />
+                            <div className="space-y-1">
+                              {(editData.batches || []).map((batch, bi) => (
+                                <input key={batch.id || bi} type="date" value={batch.expiryDate} onChange={e => {
+                                  const updated = editData.batches.map((b, i) => i === bi ? { ...b, expiryDate: e.target.value } : b);
+                                  setEditData({ ...editData, batches: updated });
+                                }}
+                                  className="w-full px-2 py-1 bg-d4l-raised border border-d4l-border rounded text-sm text-d4l-text focus:border-d4l-gold/40 focus:outline-none" />
+                              ))}
+                            </div>
                           ) : (
-                            <div>
-                              <span className="text-d4l-text2">{formatDate(vial.expiryDate)}</span>
-                              {vial.expiryStatus.days !== undefined && vial.expiryStatus.color !== 'green' && (
-                                <span className={`block text-[10px] ${vial.expiryStatus.color === 'red' ? 'text-red-400' : 'text-orange-400'}`}>
-                                  {vial.expiryStatus.days < 0 ? `${Math.abs(vial.expiryStatus.days)}d overdue` : `${vial.expiryStatus.days}d left`}
-                                </span>
-                              )}
+                            <div className="space-y-0.5">
+                              {(!vial.batches || vial.batches.length === 0) ? (
+                                <span className="text-d4l-text2">—</span>
+                              ) : vial.batches.map((b, i) => {
+                                const s = getExpiryStatus(b.expiryDate);
+                                return (
+                                  <div key={i}>
+                                    <span className="text-d4l-text2 text-sm">{formatDate(b.expiryDate)}</span>
+                                    {s.days !== undefined && s.color !== 'green' && (
+                                      <span className={`block text-[10px] ${s.color === 'red' ? 'text-red-400' : 'text-orange-400'}`}>
+                                        {s.days < 0 ? `${Math.abs(s.days)}d overdue` : `${s.days}d left`}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           {isEditing ? (
-                            <input type="number" min="0" value={editData.quantity} onChange={e => setEditData({ ...editData, quantity: e.target.value })}
-                              className="w-20 px-2 py-1 bg-d4l-raised border border-d4l-border rounded text-sm text-d4l-text text-center focus:border-d4l-gold/40 focus:outline-none" />
+                            <div className="space-y-1">
+                              {(editData.batches || []).map((batch, bi) => (
+                                <input key={batch.id || bi} type="number" min="0" value={batch.quantity} onChange={e => {
+                                  const updated = editData.batches.map((b, i) => i === bi ? { ...b, quantity: e.target.value } : b);
+                                  setEditData({ ...editData, batches: updated });
+                                }}
+                                  className="w-20 px-2 py-1 bg-d4l-raised border border-d4l-border rounded text-sm text-d4l-text text-center focus:border-d4l-gold/40 focus:outline-none" />
+                              ))}
+                              <p className="text-[11px] text-d4l-gold font-medium">= {(editData.batches || []).reduce((s, b) => s + (Number(b.quantity) || 0), 0)}</p>
+                            </div>
                           ) : (
-                            <span className={`font-medium ${(Number(vial.quantity) || 0) < vial.minQty ? 'text-amber-400' : 'text-d4l-text'}`}>
-                              {vial.quantity ?? '—'}
-                            </span>
+                            <div>
+                              <span className={`font-medium ${vial.totalQuantity < vial.minQty ? 'text-amber-400' : 'text-d4l-text'}`}>
+                                {vial.totalQuantity}
+                              </span>
+                              {vial.batches?.length > 1 && (
+                                <span className="block text-[10px] text-d4l-dim">{vial.batches.map(b => b.quantity).join('+')}</span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center">
