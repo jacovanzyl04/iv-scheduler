@@ -67,6 +67,12 @@ export default function App() {
   const [branchTransfers, setBranchTransfers] = useState(() =>
     loadFromStorage(STORAGE_KEYS.BRANCH_TRANSFERS, { history: [] })
   );
+  const [payCycleExtras, setPayCycleExtras] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.PAY_CYCLE_EXTRAS, {})
+  );
+  const [payCycleOvertime, setPayCycleOvertime] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, {})
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isMobile = useIsMobile();
 
@@ -117,6 +123,8 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.VIAL_STOCK) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.VIAL_STOCK, vialStock); }, [vialStock]);
   useEffect(() => { if (canSave(STORAGE_KEYS.CONSUMABLES_STOCK) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.CONSUMABLES_STOCK, consumablesStock); }, [consumablesStock]);
   useEffect(() => { if (canSave(STORAGE_KEYS.BRANCH_TRANSFERS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.BRANCH_TRANSFERS, branchTransfers); }, [branchTransfers]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_EXTRAS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_EXTRAS, payCycleExtras); }, [payCycleExtras]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -181,6 +189,18 @@ export default function App() {
       setBranchTransfers(data || { history: [] });
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.BRANCH_TRANSFERS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.PAY_CYCLE_EXTRAS, (data) => {
+      fromFirebase.current = true;
+      setPayCycleExtras(data || {});
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.PAY_CYCLE_EXTRAS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.PAY_CYCLE_OVERTIME, (data) => {
+      fromFirebase.current = true;
+      setPayCycleOvertime(data || {});
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.PAY_CYCLE_OVERTIME)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
@@ -427,6 +447,10 @@ export default function App() {
           <MonthlyHours
             staff={staff}
             schedules={schedules}
+            payCycleExtras={payCycleExtras}
+            setPayCycleExtras={setPayCycleExtras}
+            payCycleOvertime={payCycleOvertime}
+            setPayCycleOvertime={setPayCycleOvertime}
           />
         )}
 

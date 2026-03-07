@@ -12,6 +12,8 @@ const STORAGE_KEYS = {
   VIAL_STOCK: 'iv-scheduler-vial-stock',
   CONSUMABLES_STOCK: 'iv-scheduler-consumables-stock',
   BRANCH_TRANSFERS: 'iv-scheduler-branch-transfers',
+  PAY_CYCLE_EXTRAS: 'iv-scheduler-pay-cycle-extras',
+  PAY_CYCLE_OVERTIME: 'iv-scheduler-pay-cycle-overtime',
 };
 
 // Firebase path mapping
@@ -25,6 +27,8 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.VIAL_STOCK]: 'vialStock',
   [STORAGE_KEYS.CONSUMABLES_STOCK]: 'consumablesStock',
   [STORAGE_KEYS.BRANCH_TRANSFERS]: 'branchTransfers',
+  [STORAGE_KEYS.PAY_CYCLE_EXTRAS]: 'payCycleExtras',
+  [STORAGE_KEYS.PAY_CYCLE_OVERTIME]: 'payCycleOvertime',
 };
 
 export function loadFromStorage(key, defaultValue) {
