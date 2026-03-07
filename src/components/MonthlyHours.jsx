@@ -9,7 +9,7 @@ import {
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
-import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown, Users, BarChart3, Calculator, X, Plus, CalendarPlus, Timer } from 'lucide-react';
+import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown, Users, BarChart3, Calculator, X, Plus, CalendarPlus, Timer, Zap } from 'lucide-react';
 
 const gradients = {
   blue: 'from-blue-500 to-cyan-400',
@@ -144,6 +144,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
         weeklyBreakdown: [], weekdayCount: 0, weekdayHours: 0,
         saturdayCount: 0, saturdayHours: 0, sundayCount: 0, sundayHours: 0,
         extraDatesDetail: [], // { dateStr, hours, branches }
+        dailyOvertimeHours: 0, // auto-calculated: sum of (netHours - 9) for days > 9h
       };
     });
 
@@ -192,6 +193,10 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
           if (day === 'Saturday') { data[personId].saturdayCount += 1; data[personId].saturdayHours += netHours; }
           else if (day === 'Sunday') { data[personId].sundayCount += 1; data[personId].sundayHours += netHours; }
           else { data[personId].weekdayCount += 1; data[personId].weekdayHours += netHours; }
+          // Daily overtime: anything above 9h (lunch already deducted)
+          if (netHours > 9) {
+            data[personId].dailyOvertimeHours += netHours - 9;
+          }
           // Track extra date details
           if (shiftData.isExtra) {
             data[personId].extraDatesDetail.push({
@@ -218,6 +223,20 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
       data[member.id].overtimeEntries = entries;
       data[member.id].overtimeTotal = entries.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
       data[member.id].totalHours += data[member.id].overtimeTotal;
+    });
+
+    // Calculate monthly overtime for permanents (hours over target)
+    scheduleStaff.forEach(member => {
+      const d = data[member.id];
+      if (d.employmentType === 'permanent' && d.target > 0) {
+        d.monthlyOvertimeHours = Math.max(0, d.totalHours - d.target);
+      } else {
+        d.monthlyOvertimeHours = 0;
+      }
+      // Combined overtime = max of daily or monthly (they may overlap)
+      // Daily overtime: excess per day > 9h
+      // Monthly overtime: excess over target (for permanents)
+      d.autoOvertimeHours = Math.max(d.dailyOvertimeHours, d.monthlyOvertimeHours);
     });
 
     return data;
@@ -376,7 +395,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
         {/* Expanded detail */}
         {isExpanded && (
           <div className="border-b border-d4l-border bg-d4l-bg px-4 py-3 animate-fade-in">
-            <div className="ml-6 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg">
+            <div className="ml-6 grid grid-cols-1 sm:grid-cols-4 gap-3 max-w-2xl">
               {[
                 { label: 'Weekdays', sub: 'Mon–Fri', count: info.weekdayCount, hours: info.weekdayHours, color: '#3b82f6' },
                 { label: 'Saturdays', sub: null, count: info.saturdayCount, hours: info.saturdayHours, color: '#f59e0b' },
@@ -391,6 +410,28 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
                   </div>
                 </div>
               ))}
+              {/* Overtime card */}
+              <div className={`bg-d4l-surface rounded-lg border overflow-hidden ${info.autoOvertimeHours > 0 ? 'border-red-500/30' : 'border-d4l-border'}`}>
+                <div className="h-[2px]" style={{ background: 'linear-gradient(90deg, #ef4444, #ef444466)' }} />
+                <div className="p-3 text-center">
+                  <div className="text-[10px] text-d4l-muted mb-1 flex items-center justify-center gap-1">
+                    <Zap className="w-3 h-3 text-red-400" />
+                    Overtime
+                  </div>
+                  <div className={`text-lg font-bold ${info.autoOvertimeHours > 0 ? 'text-red-400' : 'text-d4l-text'}`}>
+                    {info.autoOvertimeHours}h
+                  </div>
+                  <div className="text-[10px] text-d4l-dim mt-0.5 space-y-0.5">
+                    {info.dailyOvertimeHours > 0 && (
+                      <div>Daily: {info.dailyOvertimeHours}h <span className="text-d4l-dim">(over 9h/day)</span></div>
+                    )}
+                    {info.monthlyOvertimeHours > 0 && (
+                      <div>Monthly: {info.monthlyOvertimeHours}h <span className="text-d4l-dim">(over target)</span></div>
+                    )}
+                    {info.autoOvertimeHours === 0 && <div>None</div>}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Extra dates section – monthly tab only */}
