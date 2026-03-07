@@ -35,12 +35,14 @@ const ROLE_BORDER = {
   nurse: 'border-l-blue-500',
   receptionist: 'border-l-pink-500',
   cleaner: 'border-l-green-500',
+  hr: 'border-l-teal-500',
 };
 
 const ROLE_DOT = {
   nurse: 'bg-blue-500',
   receptionist: 'bg-pink-500',
   cleaner: 'bg-green-500',
+  hr: 'bg-teal-500',
 };
 
 export default function StaffManager({ staff, setStaff }) {
@@ -359,6 +361,7 @@ export default function StaffManager({ staff, setStaff }) {
                         <option value="nurse">Nurse</option>
                         <option value="receptionist">Receptionist</option>
                         <option value="cleaner">Cleaner</option>
+                        <option value="hr">HR</option>
                       </select>
                     </div>
                     <div>
