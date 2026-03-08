@@ -97,6 +97,7 @@ export default function AccountManager({ staff }) {
         staffId: selectedStaffId,
         name: member.name,
         createdAt: new Date().toISOString().split('T')[0],
+        ...(useCustomPassword ? {} : { _tempPass: password }),
       });
       await firebaseSignOut(secAuth);
       if (useCustomPassword) {
@@ -114,7 +115,7 @@ export default function AccountManager({ staff }) {
       setShowPassword(false);
       setShowCreate(false);
     } catch (err) {
-      if (err.code === 'auth/email-already-in-use') setError('This email is already in use.');
+      if (err.code === 'auth/email-already-in-use') setError('This email is already in use in Firebase Auth. If you just deleted an account with this email, the auth record may still exist — try using a different email or delete the user from the Firebase Console.');
       else if (err.code === 'auth/invalid-email') setError('Invalid email address.');
       else setError(err.message || 'Failed to create account.');
     } finally {
@@ -145,6 +146,21 @@ export default function AccountManager({ staff }) {
     setDeleting(true);
     setError(null);
     try {
+      // Try to delete the Firebase Auth user too
+      const userData = users[deletingUser.uid];
+      if (userData) {
+        const secAuth = getSecondaryAuth();
+        const pass = userData._tempPass; // stored during invite creation
+        if (pass) {
+          try {
+            const credential = await firebaseSignIn(secAuth, userData.email, pass);
+            await deleteUser(credential.user);
+          } catch {
+            // Auth deletion failed (password changed, etc.) — continue with DB removal
+            await firebaseSignOut(secAuth).catch(() => {});
+          }
+        }
+      }
       await remove(ref(db, `users/${deletingUser.uid}`));
       setSuccess(`Account for ${deletingUser.name} has been deleted.`);
       setDeletingUser(null);
