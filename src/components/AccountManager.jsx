@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut, deleteUser } from 'firebase/auth';
 import { app, db, ref, set, remove, onValue, auth, sendPasswordResetEmail, updatePassword } from '../utils/firebase';
-import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil } from 'lucide-react';
+import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2 } from 'lucide-react';
 
 // Secondary app for creating users without logging out admin
 let secondaryApp = null;
@@ -59,6 +59,8 @@ export default function AccountManager({ staff }) {
   const [editShowPassword, setEditShowPassword] = useState(false);
   const [editShowCurrentPassword, setEditShowCurrentPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null); // { uid, name, email }
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!db) return;
@@ -136,6 +138,21 @@ export default function AccountManager({ staff }) {
     const nr = currentRole === 'admin' ? 'staff' : 'admin';
     try { await set(ref(db, `users/${uid}/role`), nr); }
     catch { setError('Failed to update role.'); }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingUser) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await remove(ref(db, `users/${deletingUser.uid}`));
+      setSuccess(`Account for ${deletingUser.name} has been deleted.`);
+      setDeletingUser(null);
+    } catch {
+      setError('Failed to delete account.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const openEdit = (uid, user) => {
@@ -506,6 +523,37 @@ export default function AccountManager({ staff }) {
         </div>
       )}
 
+      {/* ===== DELETE CONFIRMATION MODAL ===== */}
+      {deletingUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setDeletingUser(null)}>
+          <div className="bg-d4l-surface rounded-2xl shadow-2xl w-[420px] overflow-hidden animate-fade-in border border-red-500/20" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-d4l-border">
+              <h3 className="text-lg font-semibold text-red-400">Delete Account</h3>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-d4l-text">
+                Are you sure you want to delete the account for <strong>{deletingUser.name}</strong>?
+              </p>
+              <p className="text-xs text-d4l-muted mt-2">{deletingUser.email}</p>
+              <p className="text-[11px] text-d4l-dim mt-3">This will remove the account from the system. The staff member will no longer be able to log in.</p>
+            </div>
+            <div className="px-6 py-4 border-t border-d4l-border flex items-center gap-3">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 px-5 py-2.5 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors text-sm"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete Account
+              </button>
+              <button onClick={() => setDeletingUser(null)} className="px-4 py-2.5 text-d4l-text2 hover:text-d4l-text text-sm rounded-lg hover:bg-d4l-hover transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== ACCOUNTS SECTION ===== */}
       <div className="section-animate section-animate-delay-1">
         <h2 className="text-lg font-semibold text-d4l-text mb-4 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
@@ -574,6 +622,14 @@ export default function AccountManager({ staff }) {
                       {resetting === user.email
                         ? <Loader2 className="w-4 h-4 animate-spin" />
                         : <RefreshCw className="w-4 h-4" />}
+                    </button>
+                    {/* Delete account */}
+                    <button
+                      onClick={() => setDeletingUser({ uid, name: user.name, email: user.email })}
+                      className="p-2 rounded-lg text-d4l-dim hover:text-red-400 hover:bg-red-500/5 transition-colors"
+                      title="Delete account"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
