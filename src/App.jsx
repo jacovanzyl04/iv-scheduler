@@ -73,6 +73,12 @@ export default function App() {
   const [payCycleOvertime, setPayCycleOvertime] = useState(() =>
     loadFromStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, {})
   );
+  const [publishedSchedules, setPublishedSchedules] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, {})
+  );
+  const [scheduleStatus, setScheduleStatus] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.SCHEDULE_STATUS, {})
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isMobile = useIsMobile();
 
@@ -125,6 +131,8 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.BRANCH_TRANSFERS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.BRANCH_TRANSFERS, branchTransfers); }, [branchTransfers]);
   useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_EXTRAS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_EXTRAS, payCycleExtras); }, [payCycleExtras]);
   useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.PUBLISHED_SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, publishedSchedules); }, [publishedSchedules]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULE_STATUS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULE_STATUS, scheduleStatus); }, [scheduleStatus]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -202,6 +210,18 @@ export default function App() {
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.PAY_CYCLE_OVERTIME)));
 
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.PUBLISHED_SCHEDULES, (data) => {
+      fromFirebase.current = true;
+      setPublishedSchedules(normalizeSchedules(data));
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.PUBLISHED_SCHEDULES)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.SCHEDULE_STATUS, (data) => {
+      fromFirebase.current = true;
+      setScheduleStatus(data || {});
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.SCHEDULE_STATUS)));
+
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
 
@@ -259,6 +279,28 @@ export default function App() {
   const goToToday = () => {
     setCurrentWeekStart(getMonday(new Date()));
   };
+
+  // Schedule publish system
+  const isWeekPublished = !!scheduleStatus[weekKey]?.publishedAt;
+  const hasDraftChanges = isWeekPublished &&
+    JSON.stringify(schedules[weekKey] || {}) !== JSON.stringify(publishedSchedules[weekKey] || {});
+  const staffCurrentSchedule = publishedSchedules[weekKey] || {};
+
+  const publishSchedule = useCallback((targetWeekKey) => {
+    const scheduleData = schedules[targetWeekKey];
+    if (!scheduleData) return;
+    const statusData = {
+      publishedAt: new Date().toISOString(),
+      publishedBy: currentUser?.uid || 'unknown',
+    };
+    setPublishedSchedules(prev => ({ ...prev, [targetWeekKey]: scheduleData }));
+    setScheduleStatus(prev => ({ ...prev, [targetWeekKey]: statusData }));
+    // Direct Firebase writes for atomicity
+    if (isConfigured && db) {
+      set(ref(db, `publishedSchedules/${targetWeekKey}`), scheduleData).catch(console.error);
+      set(ref(db, `scheduleStatus/${targetWeekKey}`), statusData).catch(console.error);
+    }
+  }, [schedules, currentUser]);
 
   // Staff sub-path write wrappers (write only their own data to Firebase)
   const staffSetAvailability = useCallback((updater) => {
@@ -411,6 +453,8 @@ export default function App() {
             goToPrevWeek={goToPrevWeek}
             goToNextWeek={goToNextWeek}
             goToToday={goToToday}
+            onPublish={publishSchedule}
+            publishStatus={{ isPublished: isWeekPublished, hasDraftChanges, publishedAt: scheduleStatus[weekKey]?.publishedAt }}
           />
         )}
 
@@ -504,20 +548,21 @@ export default function App() {
           <StaffDashboard
             staffId={linkedStaffId}
             staff={staff}
-            schedules={schedules}
+            schedules={publishedSchedules}
             currentWeekStart={currentWeekStart}
             weekKey={weekKey}
             goToPrevWeek={goToPrevWeek}
             goToNextWeek={goToNextWeek}
             goToToday={goToToday}
             setActivePage={setActivePage}
+            scheduleStatus={scheduleStatus}
           />
         )}
 
         {!isAdmin && activePage === 'full-schedule' && (
           <WeeklySchedule
             staff={staff}
-            schedule={currentSchedule}
+            schedule={staffCurrentSchedule}
             setSchedule={setCurrentSchedule}
             weekStartDate={weekKey}
             currentWeekStart={currentWeekStart}
@@ -527,6 +572,7 @@ export default function App() {
             goToNextWeek={goToNextWeek}
             goToToday={goToToday}
             readOnly
+            isPublished={isWeekPublished}
           />
         )}
 
@@ -549,7 +595,7 @@ export default function App() {
         {!isAdmin && activePage === 'my-timesheet' && (
           <TimesheetTracker
             staff={staff}
-            schedules={schedules}
+            schedules={publishedSchedules}
             timesheets={timesheets}
             setTimesheets={staffSetTimesheets}
             staffFilter={linkedStaffId}

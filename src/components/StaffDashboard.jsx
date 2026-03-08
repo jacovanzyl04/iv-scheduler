@@ -22,7 +22,8 @@ function formatDate(d) {
 
 export default function StaffDashboard({
   staffId, staff, schedules, currentWeekStart, weekKey,
-  goToPrevWeek, goToNextWeek, goToToday, setActivePage
+  goToPrevWeek, goToNextWeek, goToToday, setActivePage,
+  scheduleStatus,
 }) {
   const member = staff.find(s => s.id === staffId);
   const currentSchedule = schedules[weekKey] || {};
@@ -187,6 +188,15 @@ export default function StaffDashboard({
           </button>
         </div>
       </div>
+
+      {/* Not published banner */}
+      {scheduleStatus && !scheduleStatus[weekKey]?.publishedAt && (
+        <div className="bg-d4l-surface rounded-xl border border-amber-500/20 p-5 mb-4 text-center animate-fade-in">
+          <Clock className="w-6 h-6 text-amber-400 mx-auto mb-2" />
+          <p className="text-d4l-muted text-sm font-medium">This week's schedule has not been published yet.</p>
+          <p className="text-d4l-dim text-xs mt-1">Your assignments will appear here once the schedule is published.</p>
+        </div>
+      )}
 
       {/* Weekly Schedule Grid — Mobile: day-by-day, Desktop: 7-col grid */}
       {isMobile ? (

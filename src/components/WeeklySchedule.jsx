@@ -4,7 +4,7 @@ import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours, isScheduleRole } f
 import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, timeToMinutes } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
 import { exportScheduleToPdf } from '../utils/exportPdf';
-import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, Clock, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, Clock, MoreHorizontal, Send } from 'lucide-react';
 
 // Format "HH:MM" -> short hour display: "9", "13", "17"
 function fmtHour(t) {
@@ -75,7 +75,8 @@ function hasStaffTimeConflict(staffId, day, proposedStart, proposedEnd, schedule
 export default function WeeklySchedule({
   staff, schedule, setSchedule, weekStartDate, currentWeekStart,
   availability, shiftRequests, goToPrevWeek, goToNextWeek, goToToday,
-  readOnly
+  readOnly,
+  onPublish, publishStatus, isPublished,
 }) {
   const [assignModal, setAssignModal] = useState(null); // { day, branchId, role }
   const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember, slots }
@@ -577,6 +578,20 @@ export default function WeeklySchedule({
           {/* Mobile actions */}
           {!readOnly && isMobile && (
             <div className="flex items-center gap-1.5">
+              {onPublish && (
+                <button
+                  onClick={() => {
+                    if (window.confirm('Publish this week\'s schedule?')) onPublish(weekStartDate);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg ${
+                    publishStatus?.hasDraftChanges ? 'bg-amber-500 text-black' :
+                    publishStatus?.isPublished ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'
+                  }`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {publishStatus?.hasDraftChanges ? 'Republish' : publishStatus?.isPublished ? 'Published' : 'Publish'}
+                </button>
+              )}
               <button onClick={handleAutoSchedule}
                 className="flex items-center gap-1.5 px-3 py-2 bg-d4l-gold text-black text-xs font-semibold rounded-lg">
                 <Wand2 className="w-3.5 h-3.5" />
@@ -618,24 +633,65 @@ export default function WeeklySchedule({
         </div>
 
         {/* Week nav in a pill */}
-        <div className="flex items-center justify-center gap-1 bg-d4l-surface rounded-xl border border-d4l-border px-1 py-1">
-          <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button onClick={goToToday} className="px-3 py-1.5 text-xs font-semibold text-d4l-gold hover:bg-d4l-gold/10 rounded-lg transition-colors">
-            Today
-          </button>
-          <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[140px] md:min-w-[170px] text-center select-none">
-            {formatWeekRange(currentWeekStart)}
-          </span>
-          <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex items-center justify-center gap-1 bg-d4l-surface rounded-xl border border-d4l-border px-1 py-1">
+            <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={goToToday} className="px-3 py-1.5 text-xs font-semibold text-d4l-gold hover:bg-d4l-gold/10 rounded-lg transition-colors">
+              Today
+            </button>
+            <span className="text-xs md:text-sm font-medium text-d4l-text2 min-w-[140px] md:min-w-[170px] text-center select-none">
+              {formatWeekRange(currentWeekStart)}
+            </span>
+            <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          {!readOnly && publishStatus && (
+            <div className="flex items-center gap-1.5 text-[11px]">
+              {publishStatus.isPublished ? (
+                <>
+                  <span className={`w-1.5 h-1.5 rounded-full ${publishStatus.hasDraftChanges ? 'bg-amber-400' : 'bg-green-400'}`} />
+                  <span className={publishStatus.hasDraftChanges ? 'text-amber-400' : 'text-green-400'}>
+                    {publishStatus.hasDraftChanges ? 'Unpublished changes' : 'Published'}
+                  </span>
+                  <span className="text-d4l-dim">
+                    {new Date(publishStatus.publishedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-d4l-dim" />
+                  <span className="text-d4l-dim">Draft — not published</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Desktop actions (admin only) */}
         {!readOnly && !isMobile && (
           <div className="flex items-center gap-2">
+            {onPublish && (
+              <button
+                onClick={() => {
+                  if (window.confirm('Publish this week\'s schedule? Staff will be able to see it.')) {
+                    onPublish(weekStartDate);
+                  }
+                }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                  publishStatus?.hasDraftChanges
+                    ? 'bg-amber-500 text-black hover:bg-amber-600'
+                    : publishStatus?.isPublished
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+                {publishStatus?.hasDraftChanges ? 'Republish' : publishStatus?.isPublished ? 'Published ✓' : 'Publish'}
+              </button>
+            )}
             <button onClick={handleAutoSchedule}
               className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black text-sm font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
               <Wand2 className="w-4 h-4" />
@@ -705,6 +761,15 @@ export default function WeeklySchedule({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Staff: Not published message */}
+      {readOnly && isPublished === false && Object.keys(schedule).length === 0 && (
+        <div className="bg-d4l-surface rounded-xl border border-d4l-border p-8 mb-4 text-center">
+          <Clock className="w-8 h-8 text-d4l-dim mx-auto mb-3" />
+          <p className="text-d4l-muted text-sm font-medium">This week's schedule has not been published yet.</p>
+          <p className="text-d4l-dim text-xs mt-1">Check back later for your assignments.</p>
         </div>
       )}
 

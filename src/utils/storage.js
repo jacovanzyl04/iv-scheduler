@@ -14,6 +14,8 @@ const STORAGE_KEYS = {
   BRANCH_TRANSFERS: 'iv-scheduler-branch-transfers',
   PAY_CYCLE_EXTRAS: 'iv-scheduler-pay-cycle-extras',
   PAY_CYCLE_OVERTIME: 'iv-scheduler-pay-cycle-overtime',
+  PUBLISHED_SCHEDULES: 'iv-scheduler-published-schedules',
+  SCHEDULE_STATUS: 'iv-scheduler-schedule-status',
 };
 
 // Firebase path mapping
@@ -29,6 +31,8 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.BRANCH_TRANSFERS]: 'branchTransfers',
   [STORAGE_KEYS.PAY_CYCLE_EXTRAS]: 'payCycleExtras',
   [STORAGE_KEYS.PAY_CYCLE_OVERTIME]: 'payCycleOvertime',
+  [STORAGE_KEYS.PUBLISHED_SCHEDULES]: 'publishedSchedules',
+  [STORAGE_KEYS.SCHEDULE_STATUS]: 'scheduleStatus',
 };
 
 export function loadFromStorage(key, defaultValue) {
