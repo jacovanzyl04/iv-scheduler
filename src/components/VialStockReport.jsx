@@ -7,7 +7,7 @@ import {
   Package, AlertTriangle, AlertCircle, Clock,
   Plus, Trash2, History, ChevronLeft,
   FileSpreadsheet, FileText, X, Edit3, Save, Search, Minus,
-  CheckCircle2, CircleAlert
+  CheckCircle2, CircleAlert, Share2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -535,6 +535,9 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     });
 
     setConfirmSubmit(false);
+
+    // Generate PDF and open share sheet (mobile) or download (desktop)
+    sharePdf();
   }
 
   function addVial() {
@@ -578,11 +581,12 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     setVialStock({ ...vialStock, vials: updatedVials, stock, history });
   }
 
-  // PDF Export
-  function exportPdf() {
+  // Build PDF and return { doc, filename }
+  function buildPdf() {
     const doc = new jsPDF();
     const branch = BRANCHES.find(b => b.id === selectedBranch);
     const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+    const filename = `Drip4Life_VialStock_${branch?.name || selectedBranch}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     doc.setFillColor(8, 8, 8);
     doc.rect(0, 0, 210, 35, 'F');
@@ -702,7 +706,36 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
       });
     }
 
-    doc.save(`Drip4Life_VialStock_${branch?.name || selectedBranch}_${new Date().toISOString().split('T')[0]}.pdf`);
+    return { doc, filename };
+  }
+
+  // PDF Export (download)
+  function exportPdf() {
+    const { doc, filename } = buildPdf();
+    doc.save(filename);
+  }
+
+  // Share PDF via Web Share API (mobile) or fallback to download
+  async function sharePdf() {
+    const { doc, filename } = buildPdf();
+    const blob = doc.output('blob');
+    const file = new File([blob], filename, { type: 'application/pdf' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: 'Vial Stock Report',
+          text: `Drip4Life Stock Report — ${BRANCHES.find(b => b.id === selectedBranch)?.name || selectedBranch}`,
+          files: [file],
+        });
+      } catch (err) {
+        // User cancelled or share failed — fall back to download
+        if (err.name !== 'AbortError') doc.save(filename);
+      }
+    } else {
+      // Fallback for desktop / unsupported browsers
+      doc.save(filename);
+    }
   }
 
   // Excel Export
@@ -788,6 +821,9 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
           </button>
           <button onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-d4l-surface border border-d4l-border rounded-lg text-sm text-d4l-text2 hover:border-d4l-gold/30 transition-colors">
             <FileSpreadsheet className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={sharePdf} className="flex items-center gap-1.5 px-3 py-2 bg-d4l-surface border border-d4l-border rounded-lg text-sm text-d4l-text2 hover:border-green-500/30 hover:text-green-400 transition-colors">
+            <Share2 className="w-4 h-4" /> Share
           </button>
           <button onClick={() => setShowHistory(!showHistory)} className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm transition-colors ${showHistory ? 'bg-d4l-gold/10 border-d4l-gold/40 text-d4l-gold' : 'bg-d4l-surface border-d4l-border text-d4l-text2 hover:border-d4l-gold/30'}`}>
             <History className="w-4 h-4" /> History
