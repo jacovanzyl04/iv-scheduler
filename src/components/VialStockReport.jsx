@@ -724,17 +724,15 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
-          title: 'Vial Stock Report',
-          text: `Drip4Life Stock Report — ${BRANCHES.find(b => b.id === selectedBranch)?.name || selectedBranch}`,
           files: [file],
         });
       } catch (err) {
         // User cancelled or share failed — fall back to download
-        if (err.name !== 'AbortError') doc.save(filename);
+        if (err.name !== 'AbortError') saveAs(blob, filename);
       }
     } else {
       // Fallback for desktop / unsupported browsers
-      doc.save(filename);
+      saveAs(blob, filename);
     }
   }
 
