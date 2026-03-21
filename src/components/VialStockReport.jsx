@@ -241,7 +241,7 @@ function MobileEditModal({ vial, editData, setEditData, onSave, onCancel }) {
 }
 
 // ── Mobile Vial Card ──────────────────────────────────────────────
-function MobileVialCard({ vial, onEdit, isAdmin, onRemove }) {
+function MobileVialCard({ vial, onEdit, isAdmin, isReadOnly, onRemove }) {
   const borderColorMap = {
     red: 'border-l-red-500 bg-red-500/5',
     orange: 'border-l-orange-500 bg-orange-500/5',
@@ -325,19 +325,21 @@ function MobileVialCard({ vial, onEdit, isAdmin, onRemove }) {
             <p className="text-[11px] text-d4l-dim">Not yet recorded</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <button onClick={onRemove} className="p-2.5 rounded-xl text-d4l-dim active:text-red-400 active:bg-red-500/10">
-              <Trash2 className="w-4 h-4" />
+        {!isReadOnly && (
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button onClick={onRemove} className="p-2.5 rounded-xl text-d4l-dim active:text-red-400 active:bg-red-500/10">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-2 px-4 py-2.5 bg-d4l-gold/10 border border-d4l-gold/30 rounded-xl text-sm font-semibold text-d4l-gold active:bg-d4l-gold/20"
+            >
+              <Edit3 className="w-4 h-4" /> Update
             </button>
-          )}
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2.5 bg-d4l-gold/10 border border-d4l-gold/30 rounded-xl text-sm font-semibold text-d4l-gold active:bg-d4l-gold/20"
-          >
-            <Edit3 className="w-4 h-4" /> Update
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -345,6 +347,7 @@ function MobileVialCard({ vial, onEdit, isAdmin, onRemove }) {
 
 export default function VialStockReport({ vialStock, setVialStock, userRole, currentUser, staffName }) {
   const isAdmin = userRole === 'admin';
+  const isReadOnly = userRole === 'hr';
   const isMobile = useIsMobile();
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0].id);
   const [editingRow, setEditingRow] = useState(null);
@@ -987,6 +990,7 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
                 key={vial.id}
                 vial={vial}
                 isAdmin={isAdmin}
+                isReadOnly={isReadOnly}
                 onEdit={() => startEdit(vial.id)}
                 onRemove={() => removeVial(vial.id)}
               />
@@ -1138,26 +1142,28 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {isEditing ? (
-                              <>
-                                <button onClick={() => saveEdit(vial.id)} className="p-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors" title="Save">
-                                  <Save className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={cancelEdit} className="p-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors" title="Cancel">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => startEdit(vial.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-d4l-gold hover:bg-d4l-gold/10 transition-colors" title="Edit">
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                {isAdmin && (
-                                  <button onClick={() => removeVial(vial.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Remove vial">
-                                    <Trash2 className="w-3.5 h-3.5" />
+                            {!isReadOnly && (
+                              isEditing ? (
+                                <>
+                                  <button onClick={() => saveEdit(vial.id)} className="p-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors" title="Save">
+                                    <Save className="w-3.5 h-3.5" />
                                   </button>
-                                )}
-                              </>
+                                  <button onClick={cancelEdit} className="p-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors" title="Cancel">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => startEdit(vial.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-d4l-gold hover:bg-d4l-gold/10 transition-colors" title="Edit">
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  {isAdmin && (
+                                    <button onClick={() => removeVial(vial.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Remove vial">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </>
+                              )
                             )}
                           </div>
                         </td>
@@ -1172,23 +1178,25 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
       )}
 
       {/* Bottom Actions */}
-      <div className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-col sm:flex-row'}`}>
-        {isAdmin && (
+      {!isReadOnly && (
+        <div className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-col sm:flex-row'}`}>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAddVial(!showAddVial)}
+              className={`flex items-center justify-center gap-2 bg-d4l-surface border border-d4l-border rounded-xl text-d4l-text2 hover:border-d4l-gold/30 transition-colors ${isMobile ? 'px-4 py-4 text-base' : 'px-4 py-2.5 text-sm'}`}
+            >
+              <Plus className="w-5 h-5" /> Add Vial Type
+            </button>
+          )}
           <button
-            onClick={() => setShowAddVial(!showAddVial)}
-            className={`flex items-center justify-center gap-2 bg-d4l-surface border border-d4l-border rounded-xl text-d4l-text2 hover:border-d4l-gold/30 transition-colors ${isMobile ? 'px-4 py-4 text-base' : 'px-4 py-2.5 text-sm'}`}
+            onClick={() => setConfirmSubmit(true)}
+            className={`flex items-center justify-center gap-2 rounded-xl font-bold transition-all ${isMobile ? 'px-6 py-4 text-base' : 'px-6 py-2.5 text-sm font-semibold'}`}
+            style={{ backgroundColor: selectedBranchData?.color || '#e8e800', color: '#080808' }}
           >
-            <Plus className="w-5 h-5" /> Add Vial Type
+            <Save className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} /> Submit Stock Report
           </button>
-        )}
-        <button
-          onClick={() => setConfirmSubmit(true)}
-          className={`flex items-center justify-center gap-2 rounded-xl font-bold transition-all ${isMobile ? 'px-6 py-4 text-base' : 'px-6 py-2.5 text-sm font-semibold'}`}
-          style={{ backgroundColor: selectedBranchData?.color || '#e8e800', color: '#080808' }}
-        >
-          <Save className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} /> Submit Stock Report
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Add Vial Modal */}
       {showAddVial && (

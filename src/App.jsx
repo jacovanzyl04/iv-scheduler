@@ -37,7 +37,7 @@ function formatDate(d) {
 export default function App() {
   // Auth state
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);       // 'admin' | 'staff'
+  const [userRole, setUserRole] = useState(null);       // 'admin' | 'hr' | 'staff'
   const [linkedStaffId, setLinkedStaffId] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -96,7 +96,7 @@ export default function App() {
           if (userData) {
             setUserRole(userData.role);
             setLinkedStaffId(userData.staffId);
-            setActivePage(userData.role === 'admin' ? 'schedule' : 'my-dashboard');
+            setActivePage(userData.role === 'admin' ? 'schedule' : userData.role === 'hr' ? 'schedule' : 'my-dashboard');
           } else {
             // User exists in Auth but no RTDB record — treat as unlinked
             setUserRole(null);
@@ -413,6 +413,7 @@ export default function App() {
   }
 
   const isAdmin = userRole === 'admin';
+  const isHR = userRole === 'hr';
 
   return (
     <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
@@ -532,6 +533,91 @@ export default function App() {
         )}
 
         {isAdmin && activePage === 'transfers' && (
+          <BranchTransfers
+            branchTransfers={branchTransfers}
+            setBranchTransfers={setBranchTransfers}
+            vialStock={vialStock}
+            consumablesStock={consumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {/* === HR PAGES === */}
+        {isHR && activePage === 'schedule' && (
+          <WeeklySchedule
+            staff={staff}
+            schedule={staffCurrentSchedule}
+            setSchedule={setCurrentSchedule}
+            weekStartDate={weekKey}
+            currentWeekStart={currentWeekStart}
+            availability={availability}
+            shiftRequests={shiftRequests}
+            goToPrevWeek={goToPrevWeek}
+            goToNextWeek={goToNextWeek}
+            goToToday={goToToday}
+            readOnly
+            isPublished={isWeekPublished}
+          />
+        )}
+
+        {isHR && activePage === 'calendar' && (
+          <MonthlyCalendar
+            schedules={publishedSchedules}
+            staff={staff}
+          />
+        )}
+
+        {isHR && activePage === 'staff' && (
+          <StaffManager
+            staff={staff}
+            setStaff={setStaff}
+            readOnly
+          />
+        )}
+
+        {isHR && activePage === 'hours' && (
+          <MonthlyHours
+            staff={staff}
+            schedules={schedules}
+            payCycleExtras={payCycleExtras}
+            setPayCycleExtras={setPayCycleExtras}
+            payCycleOvertime={payCycleOvertime}
+            setPayCycleOvertime={setPayCycleOvertime}
+          />
+        )}
+
+        {isHR && activePage === 'timesheets' && (
+          <TimesheetTracker
+            staff={staff}
+            schedules={schedules}
+            timesheets={timesheets}
+            setTimesheets={setTimesheets}
+          />
+        )}
+
+        {isHR && activePage === 'vial-stock' && (
+          <VialStockReport
+            vialStock={vialStock}
+            setVialStock={setVialStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {isHR && activePage === 'consumables-stock' && (
+          <ConsumablesStockReport
+            consumablesStock={consumablesStock}
+            setConsumablesStock={setConsumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {isHR && activePage === 'transfers' && (
           <BranchTransfers
             branchTransfers={branchTransfers}
             setBranchTransfers={setBranchTransfers}

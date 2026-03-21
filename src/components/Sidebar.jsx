@@ -25,6 +25,17 @@ const staffNavItems = [
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
 ];
 
+const hrNavItems = [
+  { id: 'schedule', label: 'Weekly Schedule', icon: Calendar },
+  { id: 'calendar', label: 'Monthly Calendar', icon: CalendarDays },
+  { id: 'staff', label: 'Staff', icon: Users },
+  { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
+  { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+  { id: 'vial-stock', label: 'Vial Stock', icon: Package },
+  { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
+  { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
+];
+
 // Admin bottom tabs: show 4 main + More
 const adminBottomTabs = [
   { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -41,6 +52,21 @@ const adminMoreItems = [
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
   { id: 'accounts', label: 'Manage Accounts', icon: UserCog },
+];
+
+// HR mobile: 4 bottom tabs + More
+const hrBottomTabs = [
+  { id: 'schedule', label: 'Schedule', icon: Calendar },
+  { id: 'staff', label: 'Staff', icon: Users },
+  { id: 'hours', label: 'Hours', icon: Clock },
+  { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+];
+
+const hrMoreItems = [
+  { id: 'calendar', label: 'Monthly Calendar', icon: CalendarDays },
+  { id: 'vial-stock', label: 'Vial Stock', icon: Package },
+  { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
+  { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
 ];
 
 function useIsMobile(breakpoint = 768) {
@@ -61,7 +87,7 @@ export { useIsMobile };
 
 export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, userRole, currentUser, onLogout }) {
   const isMobile = useIsMobile();
-  const navItems = userRole === 'admin' ? adminNavItems : staffNavItems;
+  const navItems = userRole === 'admin' ? adminNavItems : userRole === 'hr' ? hrNavItems : staffNavItems;
   const [mounted, setMounted] = useState(false);
   const [hoveredId, setHoveredId] = useState(null);
   const [showMore, setShowMore] = useState(false);
@@ -78,8 +104,10 @@ export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, 
 
   // === MOBILE LAYOUT ===
   if (isMobile) {
-    const bottomTabs = userRole === 'admin' ? adminBottomTabs : staffNavItems;
-    const isMorePage = userRole === 'admin' && adminMoreItems.some(item => item.id === activePage);
+    const bottomTabs = userRole === 'admin' ? adminBottomTabs : userRole === 'hr' ? hrBottomTabs : staffNavItems;
+    const moreItems = userRole === 'admin' ? adminMoreItems : userRole === 'hr' ? hrMoreItems : [];
+    const hasMore = moreItems.length > 0;
+    const isMorePage = hasMore && moreItems.some(item => item.id === activePage);
 
     return (
       <>
@@ -126,7 +154,7 @@ export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, 
               </button>
             );
           })}
-          {userRole === 'admin' && (
+          {hasMore && (
             <button
               onClick={() => setShowMore(!showMore)}
               className={`mobile-tab ${isMorePage || showMore ? 'active' : ''}`}
@@ -144,7 +172,7 @@ export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, 
             <div className="mobile-more-sheet-backdrop" onClick={() => setShowMore(false)} />
             <div className="mobile-more-sheet">
               <div className="w-10 h-1 bg-d4l-hover rounded-full mx-auto mb-3" />
-              {adminMoreItems.map(item => {
+              {moreItems.map(item => {
                 const Icon = item.icon;
                 const active = activePage === item.id;
                 return (

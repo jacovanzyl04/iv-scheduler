@@ -76,6 +76,7 @@ export default function AccountManager({ staff }) {
   const userEntries = Object.entries(users).sort((a, b) => a[1].name?.localeCompare(b[1].name || ''));
 
   const adminCount = userEntries.filter(([, u]) => u.role === 'admin').length;
+  const hrCount = userEntries.filter(([, u]) => u.role === 'hr').length;
   const staffCount = userEntries.filter(([, u]) => u.role === 'staff').length;
 
   const handleCreate = async (e) => {
@@ -135,8 +136,10 @@ export default function AccountManager({ staff }) {
     }
   };
 
-  const toggleRole = async (uid, currentRole) => {
-    const nr = currentRole === 'admin' ? 'staff' : 'admin';
+  const cycleRole = async (uid, currentRole) => {
+    const roleOrder = ['staff', 'hr', 'admin'];
+    const currentIdx = roleOrder.indexOf(currentRole);
+    const nr = roleOrder[(currentIdx + 1) % roleOrder.length];
     try { await set(ref(db, `users/${uid}/role`), nr); }
     catch { setError('Failed to update role.'); }
   };
@@ -361,6 +364,14 @@ export default function AccountManager({ staff }) {
                           : 'bg-d4l-bg text-d4l-dim border border-d4l-border hover:border-d4l-gold/30'
                       }`}>
                       Staff
+                    </button>
+                    <button type="button" onClick={() => setNewRole('hr')}
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        newRole === 'hr'
+                          ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30 font-semibold'
+                          : 'bg-d4l-bg text-d4l-dim border border-d4l-border hover:border-teal-500/30'
+                      }`}>
+                      HR
                     </button>
                     <button type="button" onClick={() => setNewRole('admin')}
                       className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -605,15 +616,17 @@ export default function AccountManager({ staff }) {
                 </div>
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-d4l-border">
-                  {/* Role toggle pill */}
+                  {/* Role cycle pill */}
                   <button
-                    onClick={() => toggleRole(uid, user.role)}
+                    onClick={() => cycleRole(uid, user.role)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all ${
                       user.role === 'admin'
                         ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20 hover:bg-purple-500/25'
+                        : user.role === 'hr'
+                        ? 'bg-teal-500/15 text-teal-400 border border-teal-500/20 hover:bg-teal-500/25'
                         : 'bg-d4l-raised text-d4l-text2 border border-d4l-border hover:bg-d4l-hover'
                     }`}
-                    title="Click to toggle role"
+                    title="Click to cycle role"
                   >
                     {user.role === 'admin' ? <ShieldCheck className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
                     {user.role}

@@ -141,7 +141,7 @@ function MobileEditModal({ item, editData, setEditData, onSave, onCancel }) {
 }
 
 // ── Mobile Item Card ──────────────────────────────────────────────
-function MobileItemCard({ item, onEdit, isAdmin, onRemove }) {
+function MobileItemCard({ item, onEdit, isAdmin, isReadOnly, onRemove }) {
   const borderColorMap = {
     red: 'border-l-red-500 bg-red-500/5',
     amber: 'border-l-amber-500',
@@ -181,19 +181,21 @@ function MobileItemCard({ item, onEdit, isAdmin, onRemove }) {
             <p className="text-[11px] text-d4l-dim">Not yet recorded</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <button onClick={onRemove} className="p-2.5 rounded-xl text-d4l-dim active:text-red-400 active:bg-red-500/10">
-              <Trash2 className="w-4 h-4" />
+        {!isReadOnly && (
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button onClick={onRemove} className="p-2.5 rounded-xl text-d4l-dim active:text-red-400 active:bg-red-500/10">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-2 px-4 py-2.5 bg-d4l-gold/10 border border-d4l-gold/30 rounded-xl text-sm font-semibold text-d4l-gold active:bg-d4l-gold/20"
+            >
+              <Edit3 className="w-4 h-4" /> Count
             </button>
-          )}
-          <button
-            onClick={onEdit}
-            className="flex items-center gap-2 px-4 py-2.5 bg-d4l-gold/10 border border-d4l-gold/30 rounded-xl text-sm font-semibold text-d4l-gold active:bg-d4l-gold/20"
-          >
-            <Edit3 className="w-4 h-4" /> Count
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -201,6 +203,7 @@ function MobileItemCard({ item, onEdit, isAdmin, onRemove }) {
 
 export default function ConsumablesStockReport({ consumablesStock, setConsumablesStock, userRole, currentUser, staffName }) {
   const isAdmin = userRole === 'admin';
+  const isReadOnly = userRole === 'hr';
   const isMobile = useIsMobile();
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0].id);
   const [editingRow, setEditingRow] = useState(null);
@@ -686,6 +689,7 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
                 key={item.id}
                 item={item}
                 isAdmin={isAdmin}
+                isReadOnly={isReadOnly}
                 onEdit={() => startEdit(item.id)}
                 onRemove={() => removeItem(item.id)}
               />
@@ -765,26 +769,28 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {isEditing ? (
-                              <>
-                                <button onClick={() => saveEdit(item.id)} className="p-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors" title="Save">
-                                  <Save className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={cancelEdit} className="p-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors" title="Cancel">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => startEdit(item.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-d4l-gold hover:bg-d4l-gold/10 transition-colors" title="Edit">
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                                {isAdmin && (
-                                  <button onClick={() => removeItem(item.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Remove item">
-                                    <Trash2 className="w-3.5 h-3.5" />
+                            {!isReadOnly && (
+                              isEditing ? (
+                                <>
+                                  <button onClick={() => saveEdit(item.id)} className="p-1.5 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors" title="Save">
+                                    <Save className="w-3.5 h-3.5" />
                                   </button>
-                                )}
-                              </>
+                                  <button onClick={cancelEdit} className="p-1.5 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors" title="Cancel">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => startEdit(item.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-d4l-gold hover:bg-d4l-gold/10 transition-colors" title="Edit">
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  {isAdmin && (
+                                    <button onClick={() => removeItem(item.id)} className="p-1.5 rounded-lg text-d4l-dim hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Remove item">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </>
+                              )
                             )}
                           </div>
                         </td>
@@ -799,23 +805,25 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
       )}
 
       {/* Bottom Actions */}
-      <div className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-col sm:flex-row'}`}>
-        {isAdmin && (
+      {!isReadOnly && (
+        <div className={`flex gap-3 ${isMobile ? 'flex-col' : 'flex-col sm:flex-row'}`}>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAddItem(!showAddItem)}
+              className={`flex items-center justify-center gap-2 bg-d4l-surface border border-d4l-border rounded-xl text-d4l-text2 hover:border-d4l-gold/30 transition-colors ${isMobile ? 'px-4 py-4 text-base' : 'px-4 py-2.5 text-sm'}`}
+            >
+              <Plus className="w-5 h-5" /> Add Item
+            </button>
+          )}
           <button
-            onClick={() => setShowAddItem(!showAddItem)}
-            className={`flex items-center justify-center gap-2 bg-d4l-surface border border-d4l-border rounded-xl text-d4l-text2 hover:border-d4l-gold/30 transition-colors ${isMobile ? 'px-4 py-4 text-base' : 'px-4 py-2.5 text-sm'}`}
+            onClick={() => setConfirmSubmit(true)}
+            className={`flex items-center justify-center gap-2 rounded-xl font-bold transition-all ${isMobile ? 'px-6 py-4 text-base' : 'px-6 py-2.5 text-sm font-semibold'}`}
+            style={{ backgroundColor: selectedBranchData?.color || '#e8e800', color: '#080808' }}
           >
-            <Plus className="w-5 h-5" /> Add Item
+            <Save className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} /> Submit Stock Take
           </button>
-        )}
-        <button
-          onClick={() => setConfirmSubmit(true)}
-          className={`flex items-center justify-center gap-2 rounded-xl font-bold transition-all ${isMobile ? 'px-6 py-4 text-base' : 'px-6 py-2.5 text-sm font-semibold'}`}
-          style={{ backgroundColor: selectedBranchData?.color || '#e8e800', color: '#080808' }}
-        >
-          <Save className={isMobile ? 'w-5 h-5' : 'w-4 h-4'} /> Submit Stock Take
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Add Item Modal */}
       {showAddItem && (

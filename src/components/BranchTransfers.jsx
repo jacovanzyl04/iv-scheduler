@@ -533,6 +533,7 @@ export default function BranchTransfers({
   const [deleteConfirmId, setDeleteConfirmId] = useState(null); // transfer ID pending delete confirmation
 
   const isAdmin = userRole === 'admin';
+  const isReadOnly = userRole === 'hr';
   const transfers = branchTransfers?.history || [];
 
   // Stats
@@ -906,13 +907,15 @@ export default function BranchTransfers({
             <FileSpreadsheet className="w-3.5 h-3.5" />
             {!isMobile && 'Excel'}
           </button>
-          <button
-            onClick={() => setShowNewTransfer(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-d4l-gold text-black rounded-lg text-sm font-bold hover:brightness-110 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            New Transfer
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={() => setShowNewTransfer(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-d4l-gold text-black rounded-lg text-sm font-bold hover:brightness-110 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              New Transfer
+            </button>
+          )}
         </div>
       </div>
 

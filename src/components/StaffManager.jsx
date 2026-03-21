@@ -45,7 +45,7 @@ const ROLE_DOT = {
   hr: 'bg-teal-500',
 };
 
-export default function StaffManager({ staff, setStaff }) {
+export default function StaffManager({ staff, setStaff, readOnly }) {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -105,14 +105,16 @@ export default function StaffManager({ staff, setStaff }) {
           <h1 className="text-xl md:text-2xl font-bold text-d4l-text">Staff Management</h1>
           <p className="text-d4l-muted text-sm">{staff.length} team members</p>
         </div>
-        <button
-          onClick={startAdd}
-          className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow text-sm"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Staff</span>
-          <span className="sm:hidden">Add</span>
-        </button>
+        {!readOnly && (
+          <button
+            onClick={startAdd}
+            className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow text-sm"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span className="hidden sm:inline">Add Staff</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+        )}
       </div>
 
       {/* Stats row */}
@@ -206,14 +208,16 @@ export default function StaffManager({ staff, setStaff }) {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => startEdit(member)} className="p-1.5 rounded-lg hover:bg-d4l-hover text-d4l-dim hover:text-d4l-text2" title="Edit">
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => deleteStaff(member.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-d4l-dim hover:text-red-400" title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                {!readOnly && (
+                  <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => startEdit(member)} className="p-1.5 rounded-lg hover:bg-d4l-hover text-d4l-dim hover:text-d4l-text2" title="Edit">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => deleteStaff(member.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-d4l-dim hover:text-red-400" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Card details */}
