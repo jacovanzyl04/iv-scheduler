@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut, deleteUser } from 'firebase/auth';
 import { app, db, ref, set, remove, onValue, auth, sendPasswordResetEmail, updatePassword } from '../utils/firebase';
-import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2, Check, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Secondary app for creating users without logging out admin
 let secondaryApp = null;
@@ -38,8 +38,49 @@ const glows = {
   amber: 'rgba(245,158,11,0.07)',
 };
 
+// Permission definitions per role: 'full' = read+write, 'view' = read-only, false = no access
+const ROLE_PERMISSIONS = {
+  admin: {
+    'Weekly Schedule':    'full',
+    'Monthly Calendar':   'full',
+    'Staff Details':      'full',
+    'Availability':       'full',
+    'Pay Cycle Hours':    'full',
+    'Timesheets':         'full',
+    'Vial Stock':         'full',
+    'Stock Take':         'full',
+    'Transfers':          'full',
+    'Manage Accounts':    'full',
+  },
+  hr: {
+    'Weekly Schedule':    'view',
+    'Monthly Calendar':   'view',
+    'Staff Details':      'view',
+    'Availability':       false,
+    'Pay Cycle Hours':    'full',
+    'Timesheets':         'full',
+    'Vial Stock':         'view',
+    'Stock Take':         'view',
+    'Transfers':          'view',
+    'Manage Accounts':    false,
+  },
+  staff: {
+    'Weekly Schedule':    'view',
+    'Monthly Calendar':   false,
+    'Staff Details':      false,
+    'Availability':       'full',
+    'Pay Cycle Hours':    false,
+    'Timesheets':         'full',
+    'Vial Stock':         'full',
+    'Stock Take':         'full',
+    'Transfers':          'full',
+    'Manage Accounts':    false,
+  },
+};
+
 export default function AccountManager({ staff }) {
   const [users, setUsers] = useState({});
+  const [expandedPerms, setExpandedPerms] = useState({});
   const [showCreate, setShowCreate] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -662,6 +703,38 @@ export default function AccountManager({ staff }) {
                     </button>
                   </div>
                 </div>
+
+                {/* Permissions toggle */}
+                <button
+                  onClick={() => setExpandedPerms(prev => ({ ...prev, [uid]: !prev[uid] }))}
+                  className="w-full flex items-center justify-between mt-2 pt-2 border-t border-d4l-border/50 text-[11px] text-d4l-dim hover:text-d4l-text2 transition-colors"
+                >
+                  <span className="uppercase tracking-wider font-medium">Permissions</span>
+                  {expandedPerms[uid] ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {expandedPerms[uid] && (
+                  <div className="mt-2 space-y-1 animate-fade-in">
+                    {Object.entries(ROLE_PERMISSIONS[user.role] || ROLE_PERMISSIONS.staff).map(([page, access]) => (
+                      <div key={page} className="flex items-center justify-between py-0.5">
+                        <span className={`text-[11px] ${access ? 'text-d4l-text2' : 'text-d4l-dim/50 line-through'}`}>{page}</span>
+                        {access === 'full' ? (
+                          <span className="flex items-center gap-1 text-[10px] text-green-400 font-medium">
+                            <Check className="w-3 h-3" /> Full
+                          </span>
+                        ) : access === 'view' ? (
+                          <span className="flex items-center gap-1 text-[10px] text-amber-400 font-medium">
+                            <Eye className="w-3 h-3" /> View
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[10px] text-d4l-dim/40 font-medium">
+                            <Minus className="w-3 h-3" /> None
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
