@@ -401,50 +401,140 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
     const doc = new jsPDF();
     const branch = BRANCHES.find(b => b.id === selectedBranch);
     const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+    const userName = staffName || currentUser?.email?.split('@')[0] || '';
 
-    doc.setFillColor(8, 8, 8);
-    doc.rect(0, 0, 210, 35, 'F');
-    doc.setTextColor(232, 232, 0);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DRIP4LIFE', 14, 18);
+    // ── Clean B&W Header ──
+    doc.setFont('times', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(0, 0, 0);
+    doc.text('DRIP 4 LIFE', 105, 16, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.setTextColor(200, 192, 168);
-    doc.text('IV NUTRIENT THERAPY — Stock Take Report', 14, 26);
-    doc.setTextColor(232, 232, 0);
-    doc.text(branch?.name || selectedBranch, 196, 18, { align: 'right' });
-    doc.setTextColor(200, 192, 168);
-    doc.text(today, 196, 26, { align: 'right' });
+    doc.setTextColor(80, 80, 80);
+    doc.setCharSpace(3);
+    doc.text('STOCK TAKE SHEET', 105, 23, { align: 'center' });
+    doc.setCharSpace(0);
 
+    // Divider line
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(14, 27, 196, 27);
+
+    // ── Branch / Date / Completed By fields ──
+    const fieldY = 34;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+
+    doc.text('Branch:', 14, fieldY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(branch?.name || selectedBranch, 32, fieldY);
+    doc.setDrawColor(150, 150, 150);
+    doc.line(30, fieldY + 1, 75, fieldY + 1);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date:', 82, fieldY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(today, 94, fieldY);
+    doc.line(92, fieldY + 1, 137, fieldY + 1);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Completed By:', 144, fieldY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(userName, 172, fieldY);
+    doc.line(170, fieldY + 1, 196, fieldY + 1);
+
+    // ── Main Table ──
     const rows = items.map(item => {
       const entry = branchStock[item.id] || {};
-      const stkStatus = getStockStatus(Number(entry.quantity) || 0, item.minQty);
-      return [
-        item.name,
-        item.code,
-        entry.quantity ?? '—',
-        item.unit,
-        item.minQty,
-        stkStatus.label,
-      ];
+      const qty = Number(entry.quantity) || 0;
+      const stkStatus = getStockStatus(qty, item.minQty);
+      const notes = stkStatus.color !== 'green' ? stkStatus.label : '';
+      return [item.name, item.code, item.unit, qty, notes];
     });
 
     autoTable(doc, {
       startY: 40,
-      head: [['Product Name', 'Code', 'Qty', 'Unit', 'Min', 'Status']],
+      head: [['Item Name', 'Code', 'Unit', 'Qty', 'Notes']],
       body: rows,
-      styles: { fontSize: 9, cellPadding: 3 },
-      headStyles: { fillColor: [30, 30, 26], textColor: [232, 232, 0], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [20, 20, 18] },
-      columnStyles: { 0: { cellWidth: 55 }, 2: { halign: 'center' }, 4: { halign: 'center' } },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 5) {
-          const text = data.cell.text[0] || '';
-          if (text.includes('Out')) data.cell.styles.textColor = [239, 68, 68];
-          else if (text.includes('Low')) data.cell.styles.textColor = [249, 115, 22];
-        }
+      styles: { fontSize: 9, cellPadding: 3, textColor: [30, 30, 30], lineColor: [150, 150, 150], lineWidth: 0.2 },
+      headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', lineColor: [0, 0, 0] },
+      bodyStyles: { fillColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 55, fontStyle: 'bold' },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 'auto' },
       },
     });
+
+    // ── Build needed & low lists ──
+    const needed = [];
+    const low = [];
+    items.forEach(item => {
+      const entry = branchStock[item.id] || {};
+      const qty = Number(entry.quantity) || 0;
+      if (qty < 1) needed.push({ name: item.name, qty });
+      else if (qty < item.minQty) low.push({ name: item.name, qty });
+    });
+
+    let bulletY = doc.lastAutoTable.finalY + 14;
+
+    // ── Stock Needed (qty 0) ──
+    if (needed.length > 0) {
+      if (bulletY > 255) { doc.addPage(); bulletY = 20; }
+      doc.setFillColor(220, 38, 38);
+      doc.roundedRect(14, bulletY, 182, 8, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`STOCK NEEDED — ${needed.length} item${needed.length > 1 ? 's' : ''}`, 105, bulletY + 5.5, { align: 'center' });
+      bulletY += 14;
+
+      doc.setFontSize(10);
+      needed.forEach(v => {
+        if (bulletY > 275) { doc.addPage(); bulletY = 20; }
+        doc.setTextColor(220, 38, 38);
+        doc.text('\u2022', 18, bulletY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        doc.text(v.name, 24, bulletY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 38, 38);
+        doc.text(`(${v.qty})`, 24 + doc.getTextWidth(v.name + ' '), bulletY);
+        bulletY += 6;
+      });
+      bulletY += 8;
+    }
+
+    // ── Running Low (qty > 0 but below min) ──
+    if (low.length > 0) {
+      if (bulletY > 255) { doc.addPage(); bulletY = 20; }
+      doc.setFillColor(217, 119, 6);
+      doc.roundedRect(14, bulletY, 182, 8, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`RUNNING LOW — ${low.length} item${low.length > 1 ? 's' : ''}`, 105, bulletY + 5.5, { align: 'center' });
+      bulletY += 14;
+
+      doc.setFontSize(10);
+      low.forEach(v => {
+        if (bulletY > 275) { doc.addPage(); bulletY = 20; }
+        doc.setTextColor(217, 119, 6);
+        doc.text('\u2022', 18, bulletY);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        doc.text(v.name, 24, bulletY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(217, 119, 6);
+        doc.text(`(${v.qty})`, 24 + doc.getTextWidth(v.name + ' '), bulletY);
+        bulletY += 6;
+      });
+    }
 
     doc.save(`Drip4Life_StockTake_${branch?.name || selectedBranch}_${new Date().toISOString().split('T')[0]}.pdf`);
   }

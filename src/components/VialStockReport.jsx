@@ -589,57 +589,80 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     const doc = new jsPDF();
     const branch = BRANCHES.find(b => b.id === selectedBranch);
     const today = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+    const userName = staffName || currentUser?.email?.split('@')[0] || '';
     const filename = `Drip4Life_VialStock_${branch?.name || selectedBranch}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-    doc.setFillColor(8, 8, 8);
-    doc.rect(0, 0, 210, 35, 'F');
-    doc.setTextColor(232, 232, 0);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DRIP4LIFE', 14, 18);
-    doc.setFontSize(10);
-    doc.setTextColor(200, 192, 168);
-    doc.text('IV NUTRIENT THERAPY — Vial Stock Report', 14, 26);
-    doc.setTextColor(232, 232, 0);
-    doc.text(branch?.name || selectedBranch, 196, 18, { align: 'right' });
-    doc.setTextColor(200, 192, 168);
-    doc.text(today, 196, 26, { align: 'right' });
+    // ── Clean B&W Header ──
+    doc.setFont('times', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(0, 0, 0);
+    doc.text('DRIP 4 LIFE', 105, 16, { align: 'center' });
 
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.setCharSpace(3);
+    doc.text('VIAL STOCK SHEET', 105, 23, { align: 'center' });
+    doc.setCharSpace(0);
+
+    // Divider line
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(14, 27, 196, 27);
+
+    // ── Branch / Date / Completed By fields ──
+    const fieldY = 34;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+
+    doc.text('Branch:', 14, fieldY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(branch?.name || selectedBranch, 32, fieldY);
+    doc.setDrawColor(150, 150, 150);
+    doc.line(30, fieldY + 1, 75, fieldY + 1);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date:', 82, fieldY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(today, 94, fieldY);
+    doc.line(92, fieldY + 1, 137, fieldY + 1);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Completed By:', 144, fieldY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(userName, 172, fieldY);
+    doc.line(170, fieldY + 1, 196, fieldY + 1);
+
+    // ── Main Table ──
     const rows = vials.map(vial => {
       const raw = branchStock[vial.id];
       const item = migrateToBatches(raw);
       const totalQty = getTotalQuantity(item.batches);
       const expStatus = getWorstExpiryStatus(item.batches);
       const stkStatus = getStockStatus(totalQty, vial.minQty);
-      const batchStr = item.batches.length === 0 ? '—' : item.batches.map(b => b.batchNumber || '—').join('\n');
-      const expiryStr = item.batches.length === 0 ? '—' : item.batches.map(b => b.expiryDate ? formatDate(b.expiryDate) : '—').join('\n');
-      return [
-        vial.name,
-        batchStr,
-        expiryStr,
-        totalQty,
-        vial.minQty,
-        `${expStatus.label}${stkStatus.color !== 'green' ? ' / ' + stkStatus.label : ''}`,
-      ];
+      const batchStr = item.batches.length === 0 ? '' : item.batches.map(b => b.batchNumber || '').join(', ');
+      const expiryStr = item.batches.length === 0 ? '' : item.batches.map(b => b.expiryDate ? formatDate(b.expiryDate) : '').join(', ');
+      const notes = [];
+      if (expStatus.color !== 'green') notes.push(expStatus.label);
+      if (stkStatus.color !== 'green') notes.push(stkStatus.label);
+      return [vial.name, batchStr, expiryStr, totalQty, notes.join(' / ')];
     });
 
     autoTable(doc, {
       startY: 40,
-      head: [['Vial Name', 'Batch #', 'Exp Date', 'Qty', 'Min', 'Status']],
+      head: [['Vial Name', 'Batch #', 'Expiry Date', 'Qty', 'Notes']],
       body: rows,
-      styles: { fontSize: 9, cellPadding: 3, textColor: [30, 30, 30] },
-      headStyles: { fillColor: [30, 30, 26], textColor: [232, 232, 0], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 3, textColor: [30, 30, 30], lineColor: [150, 150, 150], lineWidth: 0.2 },
+      headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontStyle: 'bold', lineColor: [0, 0, 0] },
       bodyStyles: { fillColor: [255, 255, 255] },
-      alternateRowStyles: { fillColor: [245, 245, 240] },
-      columnStyles: { 0: { cellWidth: 50 }, 3: { halign: 'center' }, 4: { halign: 'center' } },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 5) {
-          const text = data.cell.text[0] || '';
-          if (text.includes('Expired') || text.includes('Out of Stock')) data.cell.styles.textColor = [220, 38, 38];
-          else if (text.includes('Expiring') || text.includes('Low')) data.cell.styles.textColor = [217, 119, 6];
-          else if (text.includes('Check')) data.cell.styles.textColor = [180, 83, 9];
-          else data.cell.styles.textColor = [22, 163, 74];
-        }
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 48, fontStyle: 'bold' },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 'auto' },
       },
     });
 
@@ -651,7 +674,7 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
       const item = migrateToBatches(raw);
       const totalQty = getTotalQuantity(item.batches);
       if (totalQty < 1) needed.push({ name: vial.name, qty: totalQty });
-      else if (totalQty < vial.minQty) low.push({ name: vial.name, qty: totalQty });
+      else if (totalQty < vial.minQty) low.push({ name: vial.name, qty: totalQty, min: vial.minQty });
     });
 
     let bulletY = doc.lastAutoTable.finalY + 14;
