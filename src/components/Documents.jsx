@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FolderOpen, Upload, Search, Download, Pencil, Trash2, Pin, PinOff,
   FileText, Image as ImageIcon, File, X, History, Eye, MoreVertical,
@@ -12,7 +12,6 @@ import {
   getCategoryLabel,
   getFileKind,
   getImageThumbnailUrl,
-  getPdfThumbnailUrl,
   DOCUMENT_CATEGORIES,
   ACCEPT_ATTR,
   genId,
@@ -380,9 +379,7 @@ function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin
   const kind = doc.fileKind || getFileKind(doc.fileType);
   const canPreview = kind === 'pdf' || kind === 'image';
 
-  let thumbnailUrl = null;
-  if (kind === 'image') thumbnailUrl = getImageThumbnailUrl(doc.fileUrl, 600);
-  else if (kind === 'pdf') thumbnailUrl = getPdfThumbnailUrl(doc.fileUrl, 600);
+  const imgThumbnailUrl = kind === 'image' ? getImageThumbnailUrl(doc.fileUrl, 600) : null;
 
   return (
     <div className="bg-d4l-surface border border-d4l-border rounded-xl overflow-hidden panel-glow flex flex-col group hover:border-d4l-gold/40 transition-colors">
@@ -392,14 +389,16 @@ function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin
         disabled={!canPreview}
         className={`relative h-40 w-full flex items-center justify-center bg-d4l-bg border-b border-d4l-border overflow-hidden ${canPreview ? 'cursor-pointer hover:bg-d4l-hover/30' : 'cursor-default'}`}
       >
-        {thumbnailUrl && !thumbError ? (
+        {kind === 'image' && imgThumbnailUrl && !thumbError ? (
           <img
-            src={thumbnailUrl}
+            src={imgThumbnailUrl}
             alt={doc.title}
             loading="lazy"
             onError={() => setThumbError(true)}
             className="max-h-full max-w-full object-contain"
           />
+        ) : kind === 'pdf' ? (
+          <PdfThumbnail url={doc.fileUrl} fileKind={kind} />
         ) : (
           <FileIcon kind={kind} large />
         )}
@@ -978,4 +977,113 @@ function truncate(s, max = 60) {
   if (s == null) return '';
   const str = String(s);
   return str.length > max ? str.slice(0, max) + '…' : str;
+}
+
+/* --------------------------- PDF thumbnail renderer --------------------- */
+// Render page 1 of a PDF to a canvas using pdf.js (client-side).
+// Works for any PDF URL that is publicly accessible with CORS (Cloudinary
+// serves files with Access-Control-Allow-Origin: * by default).
+// Results are cached in-memory by URL so scrolling / filtering is free.
+
+let pdfjsLibPromise = null;
+const pdfThumbnailCache = new Map(); // url -> dataUrl
+
+async function loadPdfjs() {
+  if (pdfjsLibPromise) return pdfjsLibPromise;
+  pdfjsLibPromise = (async () => {
+    const [pdfjs, workerMod] = await Promise.all([
+      import('pdfjs-dist'),
+      import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+    ]);
+    pdfjs.GlobalWorkerOptions.workerSrc = workerMod.default;
+    return pdfjs;
+  })();
+  return pdfjsLibPromise;
+}
+
+function PdfThumbnail({ url }) {
+  const canvasRef = useRef(null);
+  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+
+  useEffect(() => {
+    if (!url) { setStatus('error'); return; }
+
+    let cancelled = false;
+
+    const paintFromDataUrl = (dataUrl) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const img = new Image();
+      img.onload = () => {
+        if (cancelled) return;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        setStatus('ready');
+      };
+      img.onerror = () => { if (!cancelled) setStatus('error'); };
+      img.src = dataUrl;
+    };
+
+    const cached = pdfThumbnailCache.get(url);
+    if (cached) {
+      paintFromDataUrl(cached);
+      return () => { cancelled = true; };
+    }
+
+    (async () => {
+      try {
+        const pdfjs = await loadPdfjs();
+        if (cancelled) return;
+
+        const loadingTask = pdfjs.getDocument({ url, isEvalSupported: false });
+        const pdf = await loadingTask.promise;
+        if (cancelled) return;
+
+        const page = await pdf.getPage(1);
+        if (cancelled) return;
+
+        const baseViewport = page.getViewport({ scale: 1 });
+        const targetWidth = 600;
+        const scale = Math.min(targetWidth / baseViewport.width, 2); // cap at 2x
+        const viewport = page.getViewport({ scale });
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext('2d');
+
+        await page.render({ canvasContext: context, viewport }).promise;
+        if (cancelled) return;
+
+        try {
+          pdfThumbnailCache.set(url, canvas.toDataURL('image/jpeg', 0.75));
+        } catch { /* tainted canvas — ignore cache */ }
+
+        setStatus('ready');
+      } catch (err) {
+        console.warn('[PdfThumbnail] render failed for', url, err);
+        if (!cancelled) setStatus('error');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [url]);
+
+  if (status === 'error') return <FileIcon kind="pdf" large />;
+
+  return (
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`max-h-full max-w-full object-contain transition-opacity duration-300 ${status === 'ready' ? 'opacity-100' : 'opacity-0'}`}
+      />
+      {status === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <RefreshCw className="w-6 h-6 text-d4l-dim animate-spin" />
+        </div>
+      )}
+    </>
+  );
 }
