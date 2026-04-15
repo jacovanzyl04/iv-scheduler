@@ -12,7 +12,7 @@
  */
 export default function PageTabs({ tabs, activeTab, onTabChange }) {
   return (
-    <div className="flex items-center gap-1 mb-5 border-b border-d4l-border section-animate overflow-x-auto">
+    <div className="flex items-center gap-1 mb-5 border-b border-d4l-border section-animate overflow-x-auto overflow-y-hidden">
       {tabs.map(tab => {
         const active = activeTab === tab.id;
         return (
