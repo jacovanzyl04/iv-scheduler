@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { INITIAL_STAFF, BRANCHES, DAYS_OF_WEEK } from './data/initialData';
-import { STORAGE_KEYS, loadFromStorage, saveToStorage, subscribeToFirebase, isConfigured } from './utils/storage';
+import { STORAGE_KEYS, loadFromStorage, saveToStorage, saveLocal, saveFirebase, subscribeToFirebase, isConfigured } from './utils/storage';
 import { auth, db, ref, set, onValue, onAuthStateChanged, signOut } from './utils/firebase';
 import Sidebar, { useIsMobile } from './components/Sidebar';
 import LoginPage from './components/LoginPage';
@@ -140,8 +140,18 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
   useEffect(() => { if (canSave(STORAGE_KEYS.PUBLISHED_SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, publishedSchedules); }, [publishedSchedules]);
   useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULE_STATUS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULE_STATUS, scheduleStatus); }, [scheduleStatus]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.DOCUMENTS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.DOCUMENTS, documents); }, [documents]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.DOCUMENT_AUDITS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits); }, [documentAudits]);
+  // Documents / audits: always cache locally so data is never lost to a
+  // Firebase latency/permission issue; only echo to Firebase after initial sync.
+  useEffect(() => {
+    if (fromFirebase.current) return;
+    saveLocal(STORAGE_KEYS.DOCUMENTS, documents);
+    if (canSave(STORAGE_KEYS.DOCUMENTS)) saveFirebase(STORAGE_KEYS.DOCUMENTS, documents);
+  }, [documents]);
+  useEffect(() => {
+    if (fromFirebase.current) return;
+    saveLocal(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits);
+    if (canSave(STORAGE_KEYS.DOCUMENT_AUDITS)) saveFirebase(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits);
+  }, [documentAudits]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {

@@ -51,23 +51,44 @@ export function loadFromStorage(key, defaultValue) {
   return defaultValue;
 }
 
-export function saveToStorage(key, data) {
-  // Always save to localStorage as cache
+// Save only to localStorage (always safe to call).
+export function saveLocal(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
     console.error(`Failed to save ${key} to storage:`, e);
   }
+}
 
-  // Also save to Firebase if configured
-  if (isConfigured && db) {
-    const path = FIREBASE_PATHS[key];
-    if (path) {
-      set(ref(db, path), data).catch(e => {
-        console.error(`Failed to save ${key} to Firebase:`, e);
-      });
+// Strip undefined values (Firebase RTDB rejects them outright).
+function stripUndefined(value) {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (Array.isArray(value)) return value.map(stripUndefined);
+  if (typeof value === 'object') {
+    const out = {};
+    for (const k of Object.keys(value)) {
+      const v = stripUndefined(value[k]);
+      if (v !== undefined) out[k] = v;
     }
+    return out;
   }
+  return value;
+}
+
+// Save only to Firebase (no-op if Firebase isn't configured).
+export function saveFirebase(key, data) {
+  if (!isConfigured || !db) return;
+  const path = FIREBASE_PATHS[key];
+  if (!path) return;
+  set(ref(db, path), stripUndefined(data)).catch(e => {
+    console.error(`Failed to save ${key} to Firebase:`, e);
+  });
+}
+
+export function saveToStorage(key, data) {
+  saveLocal(key, data);
+  saveFirebase(key, data);
 }
 
 // Subscribe to real-time updates from Firebase
