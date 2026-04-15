@@ -140,17 +140,21 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
   useEffect(() => { if (canSave(STORAGE_KEYS.PUBLISHED_SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, publishedSchedules); }, [publishedSchedules]);
   useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULE_STATUS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULE_STATUS, scheduleStatus); }, [scheduleStatus]);
-  // Documents / audits: always cache locally so data is never lost to a
-  // Firebase latency/permission issue; only echo to Firebase after initial sync.
+  // Documents: always cache locally; echo to Firebase only after initial
+  // sync so we don't overwrite remote data with a stale initial state.
   useEffect(() => {
     if (fromFirebase.current) return;
     saveLocal(STORAGE_KEYS.DOCUMENTS, documents);
     if (canSave(STORAGE_KEYS.DOCUMENTS)) saveFirebase(STORAGE_KEYS.DOCUMENTS, documents);
   }, [documents]);
+
+  // Audits are append-only and are written directly to Firebase as single
+  // children by pushAudit (see Documents.jsx). Never write the full audits
+  // object back to Firebase here — a stale snapshot would clobber audits
+  // added concurrently by another client. Local caching only.
   useEffect(() => {
     if (fromFirebase.current) return;
     saveLocal(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits);
-    if (canSave(STORAGE_KEYS.DOCUMENT_AUDITS)) saveFirebase(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits);
   }, [documentAudits]);
 
   // Subscribe to real-time Firebase updates
@@ -249,7 +253,10 @@ export default function App() {
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.DOCUMENT_AUDITS, (data) => {
       fromFirebase.current = true;
-      setDocumentAudits(data || {});
+      // Audits are append-only: merge incoming data into existing state so a
+      // partial/late snapshot from Firebase can never wipe entries we already
+      // know about locally. Deletions are intentionally not supported.
+      setDocumentAudits(prev => ({ ...(prev || {}), ...(data || {}) }));
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.DOCUMENT_AUDITS)));
 
