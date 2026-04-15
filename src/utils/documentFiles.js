@@ -59,8 +59,10 @@ export async function uploadDocumentFile(file, category = 'other') {
   }
 
   const kind = getFileKind(file.type);
-  // Use 'image' resource for actual images, 'raw' for PDFs and Word docs
-  const resourceType = kind === 'image' ? 'image' : 'raw';
+  // Upload images AND PDFs as 'image' resource type — this lets Cloudinary
+  // generate page-1 thumbnails for PDFs via URL transformations.
+  // Word docs still go as 'raw' (no free rasterization path).
+  const resourceType = (kind === 'image' || kind === 'pdf') ? 'image' : 'raw';
 
   const formData = new FormData();
   formData.append('file', file);
@@ -85,6 +87,37 @@ export async function uploadDocumentFile(file, category = 'other') {
     fileKind: kind,
     fileSize: file.size,
   };
+}
+
+/**
+ * Derive an optimized thumbnail URL for images stored on Cloudinary.
+ * Falls back to the original URL if the URL isn't a recognisable
+ * Cloudinary image URL.
+ */
+export function getImageThumbnailUrl(fileUrl, width = 600) {
+  if (!fileUrl) return null;
+  if (!fileUrl.includes('/image/upload/')) return fileUrl;
+  return fileUrl.replace(
+    '/image/upload/',
+    `/image/upload/f_auto,q_auto,w_${width},c_limit/`
+  );
+}
+
+/**
+ * Derive a JPG thumbnail URL for a PDF stored on Cloudinary as an 'image'
+ * resource. This rasterizes page 1 using Cloudinary's PDF-to-image transform.
+ * Returns null for PDFs uploaded as 'raw' (legacy) so the caller can fall
+ * back to a type icon.
+ */
+export function getPdfThumbnailUrl(fileUrl, width = 600) {
+  if (!fileUrl) return null;
+  if (!fileUrl.includes('/image/upload/')) return null;
+  return fileUrl
+    .replace(
+      '/image/upload/',
+      `/image/upload/f_jpg,pg_1,w_${width},q_auto,c_fit,b_white/`
+    )
+    .replace(/\.pdf(\?|$)/i, '.jpg$1');
 }
 
 export function formatFileSize(bytes) {

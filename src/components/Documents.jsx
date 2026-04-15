@@ -11,6 +11,8 @@ import {
   formatFullTime,
   getCategoryLabel,
   getFileKind,
+  getImageThumbnailUrl,
+  getPdfThumbnailUrl,
   DOCUMENT_CATEGORIES,
   ACCEPT_ATTR,
   genId,
@@ -374,8 +376,13 @@ function EmptyState({ icon, title, hint }) {
 /* ------------------------------ Document card --------------------------- */
 function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [thumbError, setThumbError] = useState(false);
   const kind = doc.fileKind || getFileKind(doc.fileType);
   const canPreview = kind === 'pdf' || kind === 'image';
+
+  let thumbnailUrl = null;
+  if (kind === 'image') thumbnailUrl = getImageThumbnailUrl(doc.fileUrl, 600);
+  else if (kind === 'pdf') thumbnailUrl = getPdfThumbnailUrl(doc.fileUrl, 600);
 
   return (
     <div className="bg-d4l-surface border border-d4l-border rounded-xl overflow-hidden panel-glow flex flex-col group hover:border-d4l-gold/40 transition-colors">
@@ -383,12 +390,14 @@ function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin
       <button
         onClick={onPreview}
         disabled={!canPreview}
-        className={`relative h-36 w-full flex items-center justify-center bg-d4l-bg border-b border-d4l-border ${canPreview ? 'cursor-pointer hover:bg-d4l-hover/30' : 'cursor-default'}`}
+        className={`relative h-40 w-full flex items-center justify-center bg-d4l-bg border-b border-d4l-border overflow-hidden ${canPreview ? 'cursor-pointer hover:bg-d4l-hover/30' : 'cursor-default'}`}
       >
-        {kind === 'image' && doc.fileUrl ? (
+        {thumbnailUrl && !thumbError ? (
           <img
-            src={doc.fileUrl}
+            src={thumbnailUrl}
             alt={doc.title}
+            loading="lazy"
+            onError={() => setThumbError(true)}
             className="max-h-full max-w-full object-contain"
           />
         ) : (
