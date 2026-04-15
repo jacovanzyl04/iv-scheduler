@@ -2,10 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut, deleteUser } from 'firebase/auth';
 import { app, db, ref, set, remove, onValue, auth, sendPasswordResetEmail, updatePassword } from '../utils/firebase';
-import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2, Check, Minus, ChevronDown, ChevronUp, History, UserCog } from 'lucide-react';
+import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2, Check, Minus, ChevronDown, ChevronUp, History, UserCog, RotateCcw } from 'lucide-react';
 import { useAudit, useAudits } from '../contexts/AuditContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
+import {
+  PERMISSION_KEYS, ROLE_PERMISSIONS, ACCESS_LEVELS,
+  getEffectivePermissions, buildOverrides, sameAccess,
+} from '../utils/permissions';
 
 // Secondary app for creating users without logging out admin
 let secondaryApp = null;
@@ -41,45 +45,8 @@ const glows = {
   amber: 'rgba(245,158,11,0.07)',
 };
 
-// Permission definitions per role: 'full' = read+write, 'view' = read-only, false = no access
-const ROLE_PERMISSIONS = {
-  admin: {
-    'Weekly Schedule':    'full',
-    'Monthly Calendar':   'full',
-    'Staff Details':      'full',
-    'Availability':       'full',
-    'Pay Cycle Hours':    'full',
-    'Timesheets':         'full',
-    'Vial Stock':         'full',
-    'Stock Take':         'full',
-    'Transfers':          'full',
-    'Manage Accounts':    'full',
-  },
-  hr: {
-    'Weekly Schedule':    'view',
-    'Monthly Calendar':   'view',
-    'Staff Details':      'view',
-    'Availability':       false,
-    'Pay Cycle Hours':    'full',
-    'Timesheets':         'full',
-    'Vial Stock':         'view',
-    'Stock Take':         'view',
-    'Transfers':          'view',
-    'Manage Accounts':    false,
-  },
-  staff: {
-    'Weekly Schedule':    'view',
-    'Monthly Calendar':   false,
-    'Staff Details':      false,
-    'Availability':       'full',
-    'Pay Cycle Hours':    false,
-    'Timesheets':         'full',
-    'Vial Stock':         'full',
-    'Stock Take':         'full',
-    'Transfers':          'full',
-    'Manage Accounts':    false,
-  },
-};
+// Permission definitions now live in src/utils/permissions.js so the
+// Sidebar and App.jsx route guards can enforce them too.
 
 export default function AccountManager({ staff }) {
   const audit = useAudit();
@@ -199,6 +166,60 @@ export default function AccountManager({ staff }) {
       setError('Failed to send reset email.');
     } finally {
       setResetting(null);
+    }
+  };
+
+  const currentAdminUid = auth?.currentUser?.uid || null;
+
+  const setUserPermission = async (uid, user, permKey, newValue) => {
+    if (uid === currentAdminUid) {
+      setError('You cannot edit your own permissions. Ask another admin to change them.');
+      return;
+    }
+    const effective = getEffectivePermissions(user);
+    if (sameAccess(effective[permKey], newValue)) return;
+    const nextEffective = { ...effective, [permKey]: newValue };
+    const overrides = buildOverrides(user.role, nextEffective);
+    try {
+      await set(
+        ref(db, `users/${uid}/permissions`),
+        Object.keys(overrides).length ? overrides : null,
+      );
+      audit({
+        domain: 'accounts',
+        action: 'permissions_changed',
+        targetId: uid,
+        targetLabel: user.name || user.email || uid,
+        changes: [{
+          field: permKey,
+          from: formatAccess(effective[permKey]),
+          to: formatAccess(newValue),
+        }],
+      });
+    } catch {
+      setError('Failed to update permission.');
+    }
+  };
+
+  const resetPermissionsToRoleDefaults = async (uid, user) => {
+    if (uid === currentAdminUid) {
+      setError('You cannot reset your own permissions.');
+      return;
+    }
+    if (!user.permissions || Object.keys(user.permissions).length === 0) return;
+    if (!window.confirm(`Reset ${user.name || user.email}'s permissions to the ${user.role} defaults?`)) return;
+    try {
+      await set(ref(db, `users/${uid}/permissions`), null);
+      audit({
+        domain: 'accounts',
+        action: 'permissions_reset',
+        targetId: uid,
+        targetLabel: user.name || user.email || uid,
+        details: [`Reset to ${user.role} role defaults`],
+      });
+      setSuccess(`Permissions reset to ${user.role} defaults for ${user.name || user.email}.`);
+    } catch {
+      setError('Failed to reset permissions.');
     }
   };
 
@@ -785,26 +806,13 @@ export default function AccountManager({ staff }) {
                 </button>
 
                 {expandedPerms[uid] && (
-                  <div className="mt-2 space-y-1 animate-fade-in">
-                    {Object.entries(ROLE_PERMISSIONS[user.role] || ROLE_PERMISSIONS.staff).map(([page, access]) => (
-                      <div key={page} className="flex items-center justify-between py-0.5">
-                        <span className={`text-[11px] ${access ? 'text-d4l-text2' : 'text-d4l-dim/50 line-through'}`}>{page}</span>
-                        {access === 'full' ? (
-                          <span className="flex items-center gap-1 text-[10px] text-green-400 font-medium">
-                            <Check className="w-3 h-3" /> Full
-                          </span>
-                        ) : access === 'view' ? (
-                          <span className="flex items-center gap-1 text-[10px] text-amber-400 font-medium">
-                            <Eye className="w-3 h-3" /> View
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-[10px] text-d4l-dim/40 font-medium">
-                            <Minus className="w-3 h-3" /> None
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <PermissionsEditor
+                    uid={uid}
+                    user={user}
+                    isSelf={uid === currentAdminUid}
+                    onChange={(permKey, val) => setUserPermission(uid, user, permKey, val)}
+                    onReset={() => resetPermissionsToRoleDefaults(uid, user)}
+                  />
                 )}
               </div>
             ))}
@@ -813,6 +821,86 @@ export default function AccountManager({ staff }) {
       </div>
       </>
       )}
+    </div>
+  );
+}
+
+function formatAccess(v) {
+  if (v === 'full') return 'Full';
+  if (v === 'view') return 'View';
+  return 'None';
+}
+
+/* ===================================================================
+   PermissionsEditor — tri-state pill row per page.
+   Stores overrides at users/{uid}.permissions. Admin can click "Reset"
+   to clear overrides and fall back to role defaults.
+   =================================================================== */
+function PermissionsEditor({ user, isSelf, onChange, onReset }) {
+  const effective = getEffectivePermissions(user);
+  const role = user.role || 'staff';
+  const base = ROLE_PERMISSIONS[role] || {};
+  const overrides = user.permissions || {};
+  const overrideCount = Object.keys(overrides).length;
+
+  return (
+    <div className="mt-2 space-y-1.5 animate-fade-in">
+      {isSelf && (
+        <div className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 mb-1">
+          You can't edit your own permissions. Ask another admin.
+        </div>
+      )}
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[10px] uppercase tracking-wider text-d4l-dim font-medium">
+          Overrides: <span className="text-d4l-text2">{overrideCount}</span>
+        </span>
+        {overrideCount > 0 && !isSelf && (
+          <button
+            onClick={onReset}
+            className="flex items-center gap-1 text-[10px] text-d4l-muted hover:text-d4l-gold transition-colors"
+            title="Clear all overrides and fall back to role defaults"
+          >
+            <RotateCcw className="w-3 h-3" /> Reset
+          </button>
+        )}
+      </div>
+      {PERMISSION_KEYS.map(key => {
+        const current = effective[key];
+        const def = base[key];
+        const isOverride = !sameAccess(current, def);
+        return (
+          <div key={key} className="flex items-center justify-between gap-2 py-0.5">
+            <span className={`text-[11px] truncate flex items-center gap-1 ${current ? 'text-d4l-text2' : 'text-d4l-dim'}`}>
+              {key}
+              {isOverride && (
+                <span
+                  className="w-1 h-1 rounded-full bg-d4l-gold"
+                  title={`Override (role default: ${formatAccess(def)})`}
+                />
+              )}
+            </span>
+            <div className="flex bg-d4l-bg rounded-md p-0.5 border border-d4l-border/50 shrink-0">
+              {ACCESS_LEVELS.map(opt => {
+                const active = sameAccess(current, opt.id);
+                return (
+                  <button
+                    key={opt.label}
+                    onClick={() => onChange(key, opt.id)}
+                    disabled={isSelf}
+                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                      active
+                        ? `${opt.activeBg} ${opt.activeText}`
+                        : `text-d4l-dim hover:${opt.text}`
+                    } ${isSelf ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

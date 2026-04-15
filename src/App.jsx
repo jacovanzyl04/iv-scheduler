@@ -20,6 +20,7 @@ import Documents from './components/Documents';
 import AuditLog from './components/AuditLog';
 import { AuditProvider } from './contexts/AuditContext';
 import { logAudit } from './utils/audits';
+import { hasAccessToPage } from './utils/permissions';
 import { Loader2 } from 'lucide-react';
 
 function getMonday(d) {
@@ -43,6 +44,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);       // 'admin' | 'hr' | 'staff'
   const [linkedStaffId, setLinkedStaffId] = useState(null);
+  const [userPermissions, setUserPermissions] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [activePage, setActivePage] = useState('schedule');
@@ -105,33 +107,48 @@ export default function App() {
   useEffect(() => {
     if (!auth) { setAuthLoading(false); return; }
 
+    let userNodeUnsub = null;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Clean up any previous user-node listener on auth change
+      if (userNodeUnsub) { userNodeUnsub(); userNodeUnsub = null; }
       if (user) {
         setCurrentUser(user);
-        // Look up role from users/{uid} in RTDB
+        // Subscribe live to users/{uid} so role AND permissions changes
+        // propagate without requiring a reload.
         const userRef = ref(db, `users/${user.uid}`);
-        onValue(userRef, (snapshot) => {
+        let firstSnapshot = true;
+        userNodeUnsub = onValue(userRef, (snapshot) => {
           const userData = snapshot.val();
           if (userData) {
             setUserRole(userData.role);
             setLinkedStaffId(userData.staffId);
-            setActivePage(userData.role === 'admin' ? 'schedule' : userData.role === 'hr' ? 'schedule' : 'my-dashboard');
+            setUserPermissions(userData.permissions || null);
+            if (firstSnapshot) {
+              setActivePage(userData.role === 'admin' ? 'schedule' : userData.role === 'hr' ? 'schedule' : 'my-dashboard');
+            }
           } else {
-            // User exists in Auth but no RTDB record — treat as unlinked
             setUserRole(null);
             setLinkedStaffId(null);
+            setUserPermissions(null);
           }
-          setAuthLoading(false);
-        }, { onlyOnce: true });
+          if (firstSnapshot) {
+            firstSnapshot = false;
+            setAuthLoading(false);
+          }
+        });
       } else {
         setCurrentUser(null);
         setUserRole(null);
         setLinkedStaffId(null);
+        setUserPermissions(null);
         setAuthLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (userNodeUnsub) userNodeUnsub();
+      unsubscribe();
+    };
   }, []);
 
   // Track whether updates are from Firebase (to avoid write-back loops)
@@ -542,6 +559,16 @@ export default function App() {
   const isAdmin = userRole === 'admin';
   const isHR = userRole === 'hr';
 
+  // If admin revoked access to the page the user is currently viewing,
+  // bounce them to a safe landing (their dashboard).
+  const permCheckUser = { role: userRole, permissions: userPermissions || {} };
+  useEffect(() => {
+    if (!userRole) return;
+    if (!hasAccessToPage(permCheckUser, activePage)) {
+      setActivePage(userRole === 'admin' ? 'dashboard' : userRole === 'hr' ? 'schedule' : 'my-dashboard');
+    }
+  }, [userRole, userPermissions, activePage]);
+
   return (
     <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole} audits={audits}>
     <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
@@ -551,6 +578,7 @@ export default function App() {
         isOpen={sidebarOpen}
         setIsOpen={setSidebarOpen}
         userRole={userRole}
+        userPermissions={userPermissions}
         currentUser={currentUser}
         onLogout={() => signOut(auth)}
       />

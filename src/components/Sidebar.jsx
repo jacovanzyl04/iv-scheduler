@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye, MoreHorizontal, Package, ShoppingCart, ArrowRightLeft, FolderOpen, ShieldCheck } from 'lucide-react';
+import { hasAccessToPage } from '../utils/permissions';
 
 const adminNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -94,9 +95,12 @@ function useIsMobile(breakpoint = 768) {
 
 export { useIsMobile };
 
-export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, userRole, currentUser, onLogout }) {
+export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, userRole, userPermissions, currentUser, onLogout }) {
   const isMobile = useIsMobile();
-  const navItems = userRole === 'admin' ? adminNavItems : userRole === 'hr' ? hrNavItems : staffNavItems;
+  const baseNavItems = userRole === 'admin' ? adminNavItems : userRole === 'hr' ? hrNavItems : staffNavItems;
+  // Per-user permissions can hide items that the role would normally expose.
+  const permCheckUser = { role: userRole, permissions: userPermissions || {} };
+  const navItems = baseNavItems.filter(item => hasAccessToPage(permCheckUser, item.id));
   const [mounted, setMounted] = useState(false);
   const [hoveredId, setHoveredId] = useState(null);
   const [showMore, setShowMore] = useState(false);
@@ -113,8 +117,10 @@ export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, 
 
   // === MOBILE LAYOUT ===
   if (isMobile) {
-    const bottomTabs = userRole === 'admin' ? adminBottomTabs : userRole === 'hr' ? hrBottomTabs : staffNavItems;
-    const moreItems = userRole === 'admin' ? adminMoreItems : userRole === 'hr' ? hrMoreItems : [];
+    const baseBottom = userRole === 'admin' ? adminBottomTabs : userRole === 'hr' ? hrBottomTabs : staffNavItems;
+    const baseMore = userRole === 'admin' ? adminMoreItems : userRole === 'hr' ? hrMoreItems : [];
+    const bottomTabs = baseBottom.filter(item => hasAccessToPage(permCheckUser, item.id));
+    const moreItems = baseMore.filter(item => hasAccessToPage(permCheckUser, item.id));
     const hasMore = moreItems.length > 0;
     const isMorePage = hasMore && moreItems.some(item => item.id === activePage);
 

@@ -71,11 +71,13 @@ export const ACTION_LABELS = {
   'documents.pinned':     'Pinned',
   'documents.unpinned':   'Unpinned',
   // Accounts
-  'accounts.created':       'Account created',
-  'accounts.deleted':       'Account deleted',
-  'accounts.role_changed':  'Role changed',
-  'accounts.updated':       'Account updated',
-  'accounts.password_reset':'Password reset',
+  'accounts.created':               'Account created',
+  'accounts.deleted':               'Account deleted',
+  'accounts.role_changed':          'Role changed',
+  'accounts.updated':               'Account updated',
+  'accounts.password_reset':        'Password reset',
+  'accounts.permissions_changed':   'Permissions changed',
+  'accounts.permissions_reset':     'Permissions reset',
   // Staff
   'staff.created': 'Staff added',
   'staff.updated': 'Staff updated',
