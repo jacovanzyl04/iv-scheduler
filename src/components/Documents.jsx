@@ -965,6 +965,8 @@ function AuditsPanel({ audits }) {
 
 function ActionFilter({ value, onChange }) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
+  const buttonRef = useRef(null);
   const options = [
     { id: 'all',        label: 'All actions' },
     { id: 'uploaded',   label: 'Uploaded' },
@@ -975,19 +977,49 @@ function ActionFilter({ value, onChange }) {
     { id: 'unpinned',   label: 'Unpinned' },
   ];
   const current = options.find(o => o.id === value) || options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const width = Math.max(rect.width, 180);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const wantedHeight = options.length * 34 + 8; // rough
+      const openUp = spaceBelow < wantedHeight && rect.top > wantedHeight;
+      setMenuPos({
+        top: openUp ? Math.max(8, rect.top - wantedHeight - 4) : rect.bottom + 4,
+        left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+        width,
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, options.length]);
+
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setOpen(v => !v)}
         className="flex items-center gap-2 px-3 py-2 bg-d4l-bg border border-d4l-border rounded-lg text-sm text-d4l-text hover:border-d4l-gold/40 transition-colors min-w-[160px] justify-between"
       >
         <span className="flex items-center gap-2"><Filter className="w-3.5 h-3.5 text-d4l-muted" />{current.label}</span>
         <ChevronDown className="w-3.5 h-3.5 text-d4l-muted" />
       </button>
-      {open && (
+      {open && menuPos && createPortal(
         <>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 bg-d4l-raised border border-d4l-border rounded-lg shadow-2xl z-30 min-w-[160px] overflow-hidden">
+          <div className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed bg-d4l-raised border border-d4l-border rounded-lg shadow-2xl z-[91] overflow-hidden"
+            style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+          >
             {options.map(o => (
               <button
                 key={o.id}
@@ -1002,7 +1034,8 @@ function ActionFilter({ value, onChange }) {
               </button>
             ))}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
