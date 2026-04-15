@@ -507,17 +507,28 @@ function FileIcon({ kind, large }) {
 }
 
 /* --------------------------------- Modals ------------------------------- */
+
+// Lock body scroll while any modal is open
+function useLockBodyScroll() {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+}
+
 function ModalShell({ title, onClose, children, widthClass = 'max-w-md' }) {
+  useLockBodyScroll();
   return (
     <>
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div className={`bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full ${widthClass} pointer-events-auto max-h-[90vh] flex flex-col`}>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-d4l-border shrink-0">
-            <h2 className="text-base font-semibold text-d4l-text">{title}</h2>
+            <h2 className="text-base font-semibold text-d4l-text truncate pr-4">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-md text-d4l-muted hover:text-d4l-text hover:bg-d4l-hover transition-colors"
+              className="p-1.5 rounded-md text-d4l-muted hover:text-d4l-text hover:bg-d4l-hover transition-colors shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -759,42 +770,84 @@ function DeleteConfirm({ doc, onClose, onConfirm }) {
 }
 
 function PreviewModal({ doc, onClose }) {
+  useLockBodyScroll();
   const kind = doc.fileKind || getFileKind(doc.fileType);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   return (
-    <ModalShell title={doc.title} onClose={onClose} widthClass="max-w-5xl">
-      <div className="p-0 bg-d4l-bg">
-        {kind === 'pdf' && (
-          <iframe
-            src={doc.fileUrl}
-            title={doc.title}
-            className="w-full"
-            style={{ height: '75vh', border: 0 }}
-          />
-        )}
-        {kind === 'image' && (
-          <div className="flex items-center justify-center p-4" style={{ minHeight: '60vh' }}>
-            <img src={doc.fileUrl} alt={doc.title} className="max-w-full max-h-[75vh] object-contain" />
+    <>
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 pointer-events-none">
+        <div className="bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full max-w-5xl pointer-events-auto flex flex-col overflow-hidden" style={{ height: 'min(90vh, 900px)' }}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-d4l-border shrink-0">
+            <h2 className="text-base font-semibold text-d4l-text truncate pr-4">{doc.title}</h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-d4l-muted hover:text-d4l-text hover:bg-d4l-hover transition-colors shrink-0"
+              title="Close (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        )}
-        {kind !== 'pdf' && kind !== 'image' && (
-          <div className="p-8 text-center text-sm text-d4l-muted">
-            Inline preview is not available for this file type. <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-d4l-gold underline">Open in a new tab</a> or download.
+
+          {/* Content — fills all remaining vertical space */}
+          <div className="flex-1 min-h-0 bg-d4l-bg overflow-hidden">
+            {kind === 'pdf' && (
+              <iframe
+                src={doc.fileUrl}
+                title={doc.title}
+                className="w-full h-full block"
+                style={{ border: 0 }}
+              />
+            )}
+            {kind === 'image' && (
+              <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
+                <img
+                  src={doc.fileUrl}
+                  alt={doc.title}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
+            {kind !== 'pdf' && kind !== 'image' && (
+              <div className="h-full flex items-center justify-center p-8 text-center text-sm text-d4l-muted">
+                <div>
+                  Inline preview is not available for this file type.
+                  {' '}
+                  <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-d4l-gold underline">
+                    Open in a new tab
+                  </a>
+                  {' '}or download below.
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Sticky footer */}
+          <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-d4l-border text-xs text-d4l-muted shrink-0 bg-d4l-raised">
+            <span className="truncate">
+              {doc.fileName} · {formatFileSize(doc.fileSize)}
+            </span>
+            <a
+              href={doc.fileUrl}
+              download={doc.fileName}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-d4l-gold text-black font-semibold rounded-md text-xs btn-glow shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" /> Download
+            </a>
+          </div>
+        </div>
       </div>
-      <div className="flex items-center justify-between px-5 py-3 border-t border-d4l-border text-xs text-d4l-muted">
-        <span className="truncate">{doc.fileName} · {formatFileSize(doc.fileSize)}</span>
-        <a
-          href={doc.fileUrl}
-          download={doc.fileName}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-d4l-gold text-black font-semibold rounded-md text-xs btn-glow"
-        >
-          <Download className="w-3.5 h-3.5" /> Download
-        </a>
-      </div>
-    </ModalShell>
+    </>
   );
 }
 
