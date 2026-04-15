@@ -75,15 +75,24 @@ export default function Documents({
 
   const pushAudit = (entry) => {
     const id = genId();
-    const now = Date.now();
     const actor = {
       byUid: currentUser?.uid || null,
       byName: staffName || currentUser?.email?.split('@')[0] || 'Unknown',
       byEmail: currentUser?.email || null,
       byRole: userRole || null,
-      at: now,
+      at: Date.now(),
     };
-    setDocumentAudits(prev => ({ ...(prev || {}), [id]: { id, ...actor, ...entry } }));
+    setDocumentAudits(prev => {
+      const next = { ...(prev || {}), [id]: { id, ...actor, ...entry } };
+      // Belt-and-braces: write to localStorage directly inside the updater
+      // so audit persistence does not depend on the useEffect chain firing.
+      try {
+        localStorage.setItem('iv-scheduler-document-audits', JSON.stringify(next));
+      } catch (err) {
+        console.warn('[pushAudit] failed to cache to localStorage', err);
+      }
+      return next;
+    });
   };
 
   /* --------------------------------- CRUD --------------------------------- */
