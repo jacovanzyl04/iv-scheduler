@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye, MoreHorizontal, Package, ShoppingCart, ArrowRightLeft, FolderOpen } from 'lucide-react';
+import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye, MoreHorizontal, Package, ShoppingCart, ArrowRightLeft, FolderOpen, ShieldCheck } from 'lucide-react';
 
 const adminNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -13,6 +13,7 @@ const adminNavItems = [
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
+  { id: 'audit-log', label: 'Audit Log', icon: ShieldCheck },
   { id: 'accounts', label: 'Manage Accounts', icon: UserCog },
 ];
 
@@ -37,6 +38,7 @@ const hrNavItems = [
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
+  { id: 'audit-log', label: 'Audit Log', icon: ShieldCheck },
 ];
 
 // Admin bottom tabs: show 4 main + More
@@ -55,6 +57,7 @@ const adminMoreItems = [
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
+  { id: 'audit-log', label: 'Audit Log', icon: ShieldCheck },
   { id: 'accounts', label: 'Manage Accounts', icon: UserCog },
 ];
 
@@ -72,6 +75,7 @@ const hrMoreItems = [
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
+  { id: 'audit-log', label: 'Audit Log', icon: ShieldCheck },
 ];
 
 function useIsMobile(breakpoint = 768) {

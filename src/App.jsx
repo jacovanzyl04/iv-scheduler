@@ -17,6 +17,9 @@ import VialStockReport from './components/VialStockReport';
 import ConsumablesStockReport from './components/ConsumablesStockReport';
 import BranchTransfers from './components/BranchTransfers';
 import Documents from './components/Documents';
+import AuditLog from './components/AuditLog';
+import { AuditProvider } from './contexts/AuditContext';
+import { logAudit } from './utils/audits';
 import { Loader2 } from 'lucide-react';
 
 function getMonday(d) {
@@ -85,6 +88,9 @@ export default function App() {
   );
   const [documentAudits, setDocumentAudits] = useState(() =>
     loadFromStorage(STORAGE_KEYS.DOCUMENT_AUDITS, {})
+  );
+  const [audits, setAudits] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.AUDITS, {})
   );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isMobile = useIsMobile();
@@ -156,6 +162,10 @@ export default function App() {
     if (fromFirebase.current) return;
     saveLocal(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits);
   }, [documentAudits]);
+  useEffect(() => {
+    if (fromFirebase.current) return;
+    saveLocal(STORAGE_KEYS.AUDITS, audits);
+  }, [audits]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -260,6 +270,13 @@ export default function App() {
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.DOCUMENT_AUDITS)));
 
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.AUDITS, (data) => {
+      fromFirebase.current = true;
+      // Same merge pattern as documentAudits — append-only log.
+      setAudits(prev => ({ ...(prev || {}), ...(data || {}) }));
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.AUDITS)));
+
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
 
@@ -338,7 +355,19 @@ export default function App() {
       set(ref(db, `publishedSchedules/${targetWeekKey}`), scheduleData).catch(console.error);
       set(ref(db, `scheduleStatus/${targetWeekKey}`), statusData).catch(console.error);
     }
-  }, [schedules, currentUser]);
+    // Audit
+    const linkedStaff = linkedStaffId ? staff.find(s => s.id === linkedStaffId) : null;
+    logAudit({
+      domain: 'schedule',
+      action: 'published',
+      targetId: targetWeekKey,
+      targetLabel: `Week of ${targetWeekKey}`,
+    }, {
+      currentUser,
+      staffName: linkedStaff?.name || null,
+      userRole,
+    });
+  }, [schedules, currentUser, linkedStaffId, staff, userRole]);
 
   // Staff sub-path write wrappers (write only their own data to Firebase)
   const staffSetAvailability = useCallback((updater) => {
@@ -454,6 +483,7 @@ export default function App() {
   const isHR = userRole === 'hr';
 
   return (
+    <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole}>
     <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
       <Sidebar
         activePage={activePage}
@@ -793,8 +823,13 @@ export default function App() {
             staffName={currentStaffName}
           />
         )}
+
+        {(isAdmin || isHR) && activePage === 'audit-log' && (
+          <AuditLog audits={audits} />
+        )}
         </div>
       </main>
     </div>
+    </AuditProvider>
   );
 }

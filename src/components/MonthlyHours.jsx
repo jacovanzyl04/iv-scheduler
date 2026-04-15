@@ -10,6 +10,7 @@ import {
   getNextPayCycle,
 } from '../utils/payCycle';
 import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown, Users, BarChart3, Calculator, X, Plus, CalendarPlus, Timer, Zap } from 'lucide-react';
+import { useAudit } from '../contexts/AuditContext';
 
 const gradients = {
   blue: 'from-blue-500 to-cyan-400',
@@ -29,6 +30,7 @@ function formatDateStr(d) {
 }
 
 export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, setPayCycleExtras, payCycleOvertime = {}, setPayCycleOvertime }) {
+  const audit = useAudit();
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
   const [expandedStaff, setExpandedStaff] = useState(new Set());
   const [activeTab, setActiveTab] = useState('standard'); // 'standard' | 'monthly'
@@ -279,14 +281,25 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
 
   const addExtraDate = (staffId, dateStr) => {
     if (!dateStr || !setPayCycleExtras) return;
+    let alreadyAdded = false;
     setPayCycleExtras(prev => {
       const cycle = prev[currentCycle] || {};
       const existing = Array.isArray(cycle[staffId]) ? cycle[staffId] : [];
-      if (existing.includes(dateStr)) return prev; // already added
+      if (existing.includes(dateStr)) { alreadyAdded = true; return prev; }
       return { ...prev, [currentCycle]: { ...cycle, [staffId]: [...existing, dateStr] } };
     });
     setAddingExtraFor(null);
     setExtraDateInput('');
+    if (!alreadyAdded) {
+      const member = staff.find(s => s.id === staffId);
+      audit({
+        domain: 'pay_cycle',
+        action: 'extra_added',
+        targetId: staffId,
+        targetLabel: member?.name || staffId,
+        details: [`Cycle: ${currentCycle}`, `Date: ${dateStr}`],
+      });
+    }
   };
 
   const removeExtraDate = (staffId, dateStr) => {
@@ -296,6 +309,14 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
       const existing = Array.isArray(cycle[staffId]) ? cycle[staffId] : [];
       const updated = existing.filter(d => d !== dateStr);
       return { ...prev, [currentCycle]: { ...cycle, [staffId]: updated.length ? updated : [] } };
+    });
+    const member = staff.find(s => s.id === staffId);
+    audit({
+      domain: 'pay_cycle',
+      action: 'extra_removed',
+      targetId: staffId,
+      targetLabel: member?.name || staffId,
+      details: [`Cycle: ${currentCycle}`, `Date: ${dateStr}`],
     });
   };
 
@@ -307,6 +328,19 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
       const existing = Array.isArray(cycle[staffId]) ? cycle[staffId] : [];
       return { ...prev, [currentCycle]: { ...cycle, [staffId]: [...existing, entry] } };
     });
+    const member = staff.find(s => s.id === staffId);
+    audit({
+      domain: 'pay_cycle',
+      action: 'overtime_added',
+      targetId: staffId,
+      targetLabel: member?.name || staffId,
+      details: [
+        `Cycle: ${currentCycle}`,
+        `Date: ${entry.date}`,
+        `Hours: ${entry.hours}`,
+        entry.note ? `Note: ${entry.note}` : null,
+      ].filter(Boolean),
+    });
     setAddingOvertimeFor(null);
     setOvertimeDateInput('');
     setOvertimeHoursInput('');
@@ -315,12 +349,27 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
 
   const removeOvertime = (staffId, index) => {
     if (!setPayCycleOvertime) return;
+    const removedEntry = (payCycleOvertime[currentCycle]?.[staffId] || [])[index];
     setPayCycleOvertime(prev => {
       const cycle = prev[currentCycle] || {};
       const existing = Array.isArray(cycle[staffId]) ? cycle[staffId] : [];
       const updated = existing.filter((_, i) => i !== index);
       return { ...prev, [currentCycle]: { ...cycle, [staffId]: updated } };
     });
+    if (removedEntry) {
+      const member = staff.find(s => s.id === staffId);
+      audit({
+        domain: 'pay_cycle',
+        action: 'overtime_removed',
+        targetId: staffId,
+        targetLabel: member?.name || staffId,
+        details: [
+          `Cycle: ${currentCycle}`,
+          `Date: ${removedEntry.date}`,
+          `Hours: ${removedEntry.hours}`,
+        ],
+      });
+    }
   };
 
   const gridCols = `1fr 70px 80px 70px 180px repeat(${tabWeekKeys.length}, 70px)`;

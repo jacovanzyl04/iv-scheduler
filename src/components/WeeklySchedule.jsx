@@ -5,6 +5,7 @@ import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, tim
 import { exportScheduleToExcel } from '../utils/exportExcel';
 import { exportScheduleToPdf } from '../utils/exportPdf';
 import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, Clock, MoreHorizontal, Send } from 'lucide-react';
+import { useAudit } from '../contexts/AuditContext';
 
 // Format "HH:MM" -> short hour display: "9", "13", "17"
 function fmtHour(t) {
@@ -78,6 +79,7 @@ export default function WeeklySchedule({
   readOnly,
   onPublish, publishStatus, isPublished,
 }) {
+  const audit = useAudit();
   const [assignModal, setAssignModal] = useState(null); // { day, branchId, role }
   const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember, slots }
   const [customTimeMode, setCustomTimeMode] = useState(false);
@@ -271,22 +273,42 @@ export default function WeeklySchedule({
   const handleAutoSchedule = () => {
     const result = autoSchedule(staff, schedule, availability, shiftRequests, weekStartDate);
     setSchedule(result);
+    audit({
+      domain: 'schedule',
+      action: 'auto_generated',
+      targetId: weekStartDate,
+      targetLabel: `Week of ${weekStartDate}`,
+      details: [`${staff.length} staff considered`],
+    });
   };
 
   const handleClearSchedule = () => {
     if (window.confirm('Clear the entire schedule for this week? Locked assignments will be kept.')) {
+      let lockedCount = 0;
+      let clearedCount = 0;
       const cleared = {};
       DAYS_OF_WEEK.forEach(day => {
         cleared[day] = {};
         BRANCHES.forEach(branch => {
           const existing = schedule[day]?.[branch.id];
-          cleared[day][branch.id] = {
-            nurses: existing?.nurses?.filter(n => n.locked) || [],
-            receptionists: existing?.receptionists?.filter(r => r.locked) || [],
-          };
+          const keptNurses = existing?.nurses?.filter(n => n.locked) || [];
+          const keptRecs = existing?.receptionists?.filter(r => r.locked) || [];
+          lockedCount += keptNurses.length + keptRecs.length;
+          clearedCount += (existing?.nurses?.length || 0) + (existing?.receptionists?.length || 0) - keptNurses.length - keptRecs.length;
+          cleared[day][branch.id] = { nurses: keptNurses, receptionists: keptRecs };
         });
       });
       setSchedule(cleared);
+      audit({
+        domain: 'schedule',
+        action: 'cleared',
+        targetId: weekStartDate,
+        targetLabel: `Week of ${weekStartDate}`,
+        details: [
+          `${clearedCount} assignments removed`,
+          `${lockedCount} locked assignments kept`,
+        ],
+      });
     }
   };
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BRANCHES, isScheduleRole } from '../data/initialData';
 import { UserPlus, Edit2, Trash2, X, Star, MapPin, Clock, AlertCircle, Search, Users, Briefcase } from 'lucide-react';
+import { useAudit } from '../contexts/AuditContext';
 
 const STAFF_COLORS = [
   { id: null, label: 'None', hex: null },
@@ -46,11 +47,36 @@ const ROLE_DOT = {
 };
 
 export default function StaffManager({ staff, setStaff, readOnly }) {
+  const audit = useAudit();
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+
+  // Diff two staff records and return [{ field, from, to }, ...] for
+  // human-readable fields that changed. Used on updates.
+  const diffStaff = (before, after) => {
+    const simple = ['name', 'role', 'employmentType', 'canWorkAlone', 'mainBranch', 'priority', 'monthlyHoursTarget', 'minShiftsPerWeek', 'weekendBothOrNone', 'color', 'notes'];
+    const changes = [];
+    for (const f of simple) {
+      const a = before?.[f], b = after?.[f];
+      const aStr = a === null || a === undefined ? '—' : String(a);
+      const bStr = b === null || b === undefined ? '—' : String(b);
+      if (aStr !== bStr) changes.push({ field: f, from: aStr, to: bStr });
+    }
+    const arrSame = (x, y) => JSON.stringify((x || []).slice().sort()) === JSON.stringify((y || []).slice().sort());
+    if (!arrSame(before?.branches, after?.branches)) {
+      changes.push({ field: 'branches', from: (before?.branches || []).join(', ') || '—', to: (after?.branches || []).join(', ') || '—' });
+    }
+    if (!arrSame(before?.lastResortBranches, after?.lastResortBranches)) {
+      changes.push({ field: 'lastResortBranches', from: (before?.lastResortBranches || []).join(', ') || '—', to: (after?.lastResortBranches || []).join(', ') || '—' });
+    }
+    if (JSON.stringify(before?.availableDays) !== JSON.stringify(after?.availableDays)) {
+      changes.push({ field: 'availableDays', from: Array.isArray(before?.availableDays) ? before.availableDays.join(', ') : '(any)', to: Array.isArray(after?.availableDays) ? after.availableDays.join(', ') : '(any)' });
+    }
+    return changes;
+  };
 
   const startEdit = (member) => {
     setEditingId(member.id);
@@ -68,9 +94,31 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
     if (!formData.name.trim()) return;
 
     if (editingId) {
+      const prevStaff = staff.find(s => s.id === editingId);
+      const changes = diffStaff(prevStaff, formData);
       setStaff(prev => prev.map(s => s.id === editingId ? formData : s));
+      if (changes.length) {
+        audit({
+          domain: 'staff',
+          action: 'updated',
+          targetId: formData.id,
+          targetLabel: formData.name,
+          changes,
+        });
+      }
     } else {
       setStaff(prev => [...prev, formData]);
+      audit({
+        domain: 'staff',
+        action: 'created',
+        targetId: formData.id,
+        targetLabel: formData.name,
+        details: [
+          `Role: ${formData.role}`,
+          `Employment: ${formData.employmentType}`,
+          `Branches: ${(formData.branches || []).join(', ') || '—'}`,
+        ],
+      });
     }
     setShowForm(false);
     setFormData(null);
@@ -79,7 +127,17 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
 
   const deleteStaff = (id) => {
     if (window.confirm('Remove this staff member?')) {
+      const removed = staff.find(s => s.id === id);
       setStaff(prev => prev.filter(s => s.id !== id));
+      if (removed) {
+        audit({
+          domain: 'staff',
+          action: 'deleted',
+          targetId: id,
+          targetLabel: removed.name,
+          details: [`Role: ${removed.role}`, `Employment: ${removed.employmentType}`],
+        });
+      }
     }
   };
 

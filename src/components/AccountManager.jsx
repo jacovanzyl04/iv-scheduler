@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut, deleteUser } from 'firebase/auth';
 import { app, db, ref, set, remove, onValue, auth, sendPasswordResetEmail, updatePassword } from '../utils/firebase';
 import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2, Check, Minus, ChevronDown, ChevronUp } from 'lucide-react';
+import { useAudit } from '../contexts/AuditContext';
 
 // Secondary app for creating users without logging out admin
 let secondaryApp = null;
@@ -79,6 +80,7 @@ const ROLE_PERMISSIONS = {
 };
 
 export default function AccountManager({ staff }) {
+  const audit = useAudit();
   const [users, setUsers] = useState({});
   const [expandedPerms, setExpandedPerms] = useState({});
   const [showCreate, setShowCreate] = useState(false);
@@ -142,6 +144,17 @@ export default function AccountManager({ staff }) {
         ...(useCustomPassword ? {} : { _tempPass: password }),
       });
       await firebaseSignOut(secAuth);
+      audit({
+        domain: 'accounts',
+        action: 'created',
+        targetId: newUid,
+        targetLabel: member.name,
+        details: [
+          `Email: ${newEmail}`,
+          `Role: ${newRole}`,
+          useCustomPassword ? 'Password set by admin' : 'Password reset email sent',
+        ],
+      });
       if (useCustomPassword) {
         setCreatedPassword(password);
         setSuccess(`Account created for ${member.name} with custom password. You can now log in as ${newEmail}.`);
@@ -169,6 +182,14 @@ export default function AccountManager({ staff }) {
     setResetting(email);
     try {
       await sendPasswordResetEmail(auth, email);
+      const targetUser = Object.entries(users).find(([, u]) => u.email === email);
+      audit({
+        domain: 'accounts',
+        action: 'password_reset',
+        targetId: targetUser?.[0],
+        targetLabel: targetUser?.[1]?.name || email,
+        details: [`Password reset email sent to ${email}`],
+      });
       setSuccess(`Password reset email sent to ${email}.`);
     } catch {
       setError('Failed to send reset email.');
@@ -181,7 +202,16 @@ export default function AccountManager({ staff }) {
     const roleOrder = ['staff', 'hr', 'admin'];
     const currentIdx = roleOrder.indexOf(currentRole);
     const nr = roleOrder[(currentIdx + 1) % roleOrder.length];
-    try { await set(ref(db, `users/${uid}/role`), nr); }
+    try {
+      await set(ref(db, `users/${uid}/role`), nr);
+      audit({
+        domain: 'accounts',
+        action: 'role_changed',
+        targetId: uid,
+        targetLabel: users[uid]?.name || users[uid]?.email || uid,
+        changes: [{ field: 'Role', from: currentRole, to: nr }],
+      });
+    }
     catch { setError('Failed to update role.'); }
   };
 
@@ -206,6 +236,13 @@ export default function AccountManager({ staff }) {
         }
       }
       await remove(ref(db, `users/${deletingUser.uid}`));
+      audit({
+        domain: 'accounts',
+        action: 'deleted',
+        targetId: deletingUser.uid,
+        targetLabel: deletingUser.name,
+        details: [`Email: ${deletingUser.email}`, `Role: ${deletingUser.role}`],
+      });
       setSuccess(`Account for ${deletingUser.name} has been deleted.`);
       setDeletingUser(null);
     } catch {
@@ -256,6 +293,16 @@ export default function AccountManager({ staff }) {
         await firebaseSignOut(secAuth);
       }
 
+      const changes = [];
+      if (emailChanged) changes.push({ field: 'Email', from: editingUser.email, to: editEmail });
+      if (passwordChanged) changes.push({ field: 'Password', from: '(hidden)', to: '(changed)' });
+      audit({
+        domain: 'accounts',
+        action: 'updated',
+        targetId: editingUser.uid,
+        targetLabel: editingUser.name,
+        changes,
+      });
       setSuccess(`Account for ${editingUser.name} updated successfully.${passwordChanged ? ' Password changed.' : ''}${emailChanged ? ` Email changed to ${editEmail}.` : ''}`);
       setEditingUser(null);
     } catch (err) {

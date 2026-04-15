@@ -10,6 +10,7 @@ import {
   getNextPayCycle,
 } from '../utils/payCycle';
 import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup } from '../utils/timesheetFiles';
+import { useAudit } from '../contexts/AuditContext';
 
 const gradients = {
   blue: 'from-blue-500 to-cyan-400',
@@ -49,6 +50,7 @@ function NotesInput({ value, onChange, placeholder, className }) {
 }
 
 export default function TimesheetTracker({ staff, schedules, timesheets, setTimesheets, staffFilter }) {
+  const audit = useAudit();
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
   const [uploadingStaff, setUploadingStaff] = useState(null);
   const [uploadError, setUploadError] = useState(null);
@@ -75,16 +77,30 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const support = filteredEntries.filter(([, info]) => !isScheduleRole(info.role)).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
   const toggleStatus = (staffId) => {
+    let fromStatus = 'pending';
+    let toStatus = 'submitted';
     setTimesheets(prev => {
       const updated = { ...prev };
       if (!updated[currentCycle]) updated[currentCycle] = {};
       const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
+      fromStatus = current.status;
       if (current.status === 'pending') {
+        toStatus = 'submitted';
         updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] } };
       } else {
+        toStatus = 'pending';
         updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, status: 'pending', submittedDate: null } };
       }
       return updated;
+    });
+    const member = staff.find(s => s.id === staffId);
+    audit({
+      domain: 'timesheets',
+      action: 'status_changed',
+      targetId: staffId,
+      targetLabel: member?.name || staffId,
+      changes: [{ field: 'Status', from: fromStatus, to: toStatus }],
+      details: [`Cycle: ${currentCycle}`],
     });
   };
 
@@ -125,6 +141,14 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, fileUrl, fileName, status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] } };
         return updated;
       });
+      const member = staff.find(s => s.id === staffId);
+      audit({
+        domain: 'timesheets',
+        action: 'file_uploaded',
+        targetId: staffId,
+        targetLabel: member?.name || staffId,
+        details: [`Cycle: ${currentCycle}`, `File: ${fileName}`],
+      });
     } catch (err) {
       setUploadError({ staffId, message: err.message });
     } finally {
@@ -134,6 +158,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
 
   const handleRemoveFile = async (staffId) => {
     try {
+      const removedFileName = timesheets[currentCycle]?.[staffId]?.fileName;
       await deleteTimesheetFile(currentCycle, staffId);
       setTimesheets(prev => {
         const updated = { ...prev };
@@ -141,6 +166,14 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         const { fileUrl, fileName, ...rest } = updated[currentCycle][staffId];
         updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...rest, status: 'pending', submittedDate: null } };
         return updated;
+      });
+      const member = staff.find(s => s.id === staffId);
+      audit({
+        domain: 'timesheets',
+        action: 'file_removed',
+        targetId: staffId,
+        targetLabel: member?.name || staffId,
+        details: [`Cycle: ${currentCycle}`, removedFileName ? `File: ${removedFileName}` : null].filter(Boolean),
       });
     } catch (err) {
       console.error('Failed to remove file:', err);

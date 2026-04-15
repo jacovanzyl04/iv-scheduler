@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   SCHEDULE_STATUS: 'iv-scheduler-schedule-status',
   DOCUMENTS: 'iv-scheduler-documents',
   DOCUMENT_AUDITS: 'iv-scheduler-document-audits',
+  AUDITS: 'iv-scheduler-audits',
 };
 
 // Firebase path mapping
@@ -37,6 +38,7 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.SCHEDULE_STATUS]: 'scheduleStatus',
   [STORAGE_KEYS.DOCUMENTS]: 'documents',
   [STORAGE_KEYS.DOCUMENT_AUDITS]: 'documentAudits',
+  [STORAGE_KEYS.AUDITS]: 'audits',
 };
 
 export function loadFromStorage(key, defaultValue) {
