@@ -10,6 +10,7 @@ import {
   CheckCircle2, CircleAlert, Share2
 } from 'lucide-react';
 import { useAudit, useAudits } from '../contexts/AuditContext';
+import { useCan } from '../contexts/PermissionsContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
 import jsPDF from 'jspdf';
@@ -349,8 +350,13 @@ function MobileVialCard({ vial, onEdit, isAdmin, isReadOnly, onRemove }) {
 }
 
 export default function VialStockReport({ vialStock, setVialStock, userRole, currentUser, staffName }) {
-  const isAdmin = userRole === 'admin';
-  const isReadOnly = userRole === 'hr';
+  // Write access now comes from the Vial Stock permission, not the role.
+  // A staff user with Vial Stock: View is read-only; an HR user with
+  // Vial Stock: Full can edit. `isAdmin` is kept for admin-only features
+  // like add/remove of vial types (separate from per-batch writes).
+  const { canRead, canWrite } = useCan('Vial Stock');
+  const isAdmin = userRole === 'admin' && canWrite;
+  const isReadOnly = canRead && !canWrite;
   const isMobile = useIsMobile();
   const audit = useAudit();
   const allAudits = useAudits();

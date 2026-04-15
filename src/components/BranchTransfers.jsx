@@ -14,6 +14,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import { useAudit, useAudits } from '../contexts/AuditContext';
+import { useCan } from '../contexts/PermissionsContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
 
@@ -538,8 +539,9 @@ export default function BranchTransfers({
   const [selectedTransfer, setSelectedTransfer] = useState(null); // for viewing details
   const [deleteConfirmId, setDeleteConfirmId] = useState(null); // transfer ID pending delete confirmation
 
-  const isAdmin = userRole === 'admin';
-  const isReadOnly = userRole === 'hr';
+  const { canRead, canWrite } = useCan('Transfers');
+  const isAdmin = userRole === 'admin' && canWrite;
+  const isReadOnly = canRead && !canWrite;
   const transfers = branchTransfers?.history || [];
 
   const domainAuditsCount = useMemo(() => {

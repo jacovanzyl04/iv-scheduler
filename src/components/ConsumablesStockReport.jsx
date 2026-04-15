@@ -13,6 +13,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
 import { useAudit, useAudits } from '../contexts/AuditContext';
+import { useCan } from '../contexts/PermissionsContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
 
@@ -205,8 +206,9 @@ function MobileItemCard({ item, onEdit, isAdmin, isReadOnly, onRemove }) {
 }
 
 export default function ConsumablesStockReport({ consumablesStock, setConsumablesStock, userRole, currentUser, staffName }) {
-  const isAdmin = userRole === 'admin';
-  const isReadOnly = userRole === 'hr';
+  const { canRead, canWrite } = useCan('Stock Take');
+  const isAdmin = userRole === 'admin' && canWrite;
+  const isReadOnly = canRead && !canWrite;
   const isMobile = useIsMobile();
   const audit = useAudit();
   const allAudits = useAudits();

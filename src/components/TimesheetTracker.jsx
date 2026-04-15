@@ -11,6 +11,7 @@ import {
 } from '../utils/payCycle';
 import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup } from '../utils/timesheetFiles';
 import { useAudit, useAudits } from '../contexts/AuditContext';
+import { useCan } from '../contexts/PermissionsContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
 
@@ -55,6 +56,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const audit = useAudit();
   const allAudits = useAudits();
   const [pageTab, setPageTab] = useState('main');
+  const { canWrite } = useCan('Timesheets');
   const domainAuditsCount = useMemo(() => {
     return Object.values(allAudits || {}).filter(a => a.domain === 'timesheets').length;
   }, [allAudits]);
@@ -84,6 +86,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const support = filteredEntries.filter(([, info]) => !isScheduleRole(info.role)).sort((a, b) => a[1].name.localeCompare(b[1].name));
 
   const toggleStatus = (staffId) => {
+    if (!canWrite) return;
     let fromStatus = 'pending';
     let toStatus = 'submitted';
     setTimesheets(prev => {
@@ -112,6 +115,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   };
 
   const updateNotes = (staffId, notes) => {
+    if (!canWrite) return;
     setTimesheets(prev => {
       const updated = { ...prev };
       if (!updated[currentCycle]) updated[currentCycle] = {};
@@ -126,6 +130,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const goToCurrentCycle = () => setCurrentCycle(getPayCycleForDate(new Date()));
 
   const handleUploadClick = (staffId) => {
+    if (!canWrite) return;
     setUploadError(null);
     uploadTargetStaff.current = staffId;
     fileInputRef.current.value = '';
@@ -164,6 +169,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   };
 
   const handleRemoveFile = async (staffId) => {
+    if (!canWrite) return;
     try {
       const removedFileName = timesheets[currentCycle]?.[staffId]?.fileName;
       await deleteTimesheetFile(currentCycle, staffId);
@@ -214,13 +220,13 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
             )}
             {uploadingStaff === staffId ? (
               <Loader2 className="w-3.5 h-3.5 text-d4l-gold-dim animate-spin shrink-0" />
-            ) : (
+            ) : canWrite ? (
               <button onClick={() => handleUploadClick(staffId)} disabled={!!uploadingStaff}
                 className="p-1 rounded-lg hover:bg-d4l-gold/10 transition-colors shrink-0" title={ts.fileUrl ? 'Replace file' : 'Upload timesheet'}>
                 <Upload className={`w-3.5 h-3.5 ${uploadingStaff ? 'text-d4l-hover' : 'text-d4l-dim hover:text-d4l-gold'}`} />
               </button>
-            )}
-            {ts.fileUrl && (
+            ) : null}
+            {ts.fileUrl && canWrite && (
               <button onClick={() => handleRemoveFile(staffId)} className="p-1 rounded-lg hover:bg-red-500/10 transition-colors shrink-0" title="Remove file">
                 <X className="w-3.5 h-3.5 text-d4l-dim hover:text-red-400" />
               </button>
@@ -255,7 +261,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
 
         {/* Status */}
         <div className="text-center">
-          {!staffFilter ? (
+          {!staffFilter && canWrite ? (
             <button onClick={() => toggleStatus(staffId)}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 isSubmitted
@@ -282,12 +288,16 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
 
         {/* Notes */}
         <div>
-          <NotesInput
-            value={ts.notes}
-            onChange={notes => updateNotes(staffId, notes)}
-            placeholder="Add note..."
-            className="w-full text-sm bg-transparent border-0 border-b border-d4l-border text-d4l-text placeholder:text-d4l-dim focus:border-d4l-gold focus:ring-0 outline-none py-1"
-          />
+          {canWrite ? (
+            <NotesInput
+              value={ts.notes}
+              onChange={notes => updateNotes(staffId, notes)}
+              placeholder="Add note..."
+              className="w-full text-sm bg-transparent border-0 border-b border-d4l-border text-d4l-text placeholder:text-d4l-dim focus:border-d4l-gold focus:ring-0 outline-none py-1"
+            />
+          ) : (
+            <span className="text-sm text-d4l-muted italic">{ts.notes || '—'}</span>
+          )}
         </div>
       </div>
     );

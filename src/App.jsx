@@ -19,6 +19,7 @@ import BranchTransfers from './components/BranchTransfers';
 import Documents from './components/Documents';
 import AuditLog from './components/AuditLog';
 import { AuditProvider } from './contexts/AuditContext';
+import { PermissionsProvider } from './contexts/PermissionsContext';
 import { logAudit } from './utils/audits';
 import { hasAccessToPage } from './utils/permissions';
 import { Loader2 } from 'lucide-react';
@@ -572,6 +573,7 @@ export default function App() {
   const isHR = userRole === 'hr';
 
   return (
+    <PermissionsProvider role={userRole} permissions={userPermissions}>
     <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole} audits={audits}>
     <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
       <Sidebar
@@ -930,5 +932,6 @@ export default function App() {
       </main>
     </div>
     </AuditProvider>
+    </PermissionsProvider>
   );
 }

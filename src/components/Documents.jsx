@@ -18,6 +18,7 @@ import {
   genId,
 } from '../utils/documentFiles';
 import { saveFirebaseChild } from '../utils/storage';
+import { useCan } from '../contexts/PermissionsContext';
 
 /* =========================================================================
    Main component
@@ -31,7 +32,11 @@ export default function Documents({
   currentUser,
   staffName,
 }) {
-  const canManage = userRole === 'admin' || userRole === 'hr';
+  // Write access comes from the explicit Documents permission, so a staff
+  // user with Documents: Full can upload/edit, and an HR user with
+  // Documents: View is read-only — it's no longer just role-based.
+  const { canWrite } = useCan('Documents');
+  const canManage = canWrite;
   const canViewAudits = canManage;
 
   const [activeTab, setActiveTab] = useState('library');
