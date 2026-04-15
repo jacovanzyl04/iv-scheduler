@@ -782,16 +782,20 @@ function PreviewModal({ doc, onClose }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 pointer-events-none">
-        <div className="bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full max-w-5xl pointer-events-auto flex flex-col overflow-hidden" style={{ height: 'min(90vh, 900px)' }}>
+      <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed inset-2 md:inset-4 z-50 flex items-center justify-center pointer-events-none">
+        <div className="bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full h-full max-w-5xl pointer-events-auto flex flex-col overflow-hidden" style={{ maxHeight: '1000px' }}>
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-d4l-border shrink-0">
-            <h2 className="text-base font-semibold text-d4l-text truncate pr-4">{doc.title}</h2>
+          <div className="flex items-center justify-between gap-3 px-4 md:px-5 border-b border-d4l-border shrink-0 bg-d4l-surface" style={{ minHeight: 52 }}>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <FileIcon kind={kind} />
+              <h2 className="text-sm md:text-base font-semibold text-d4l-text truncate">{doc.title || 'Preview'}</h2>
+            </div>
             <button
               onClick={onClose}
               className="p-1.5 rounded-md text-d4l-muted hover:text-d4l-text hover:bg-d4l-hover transition-colors shrink-0"
               title="Close (Esc)"
+              aria-label="Close preview"
             >
               <X className="w-4 h-4" />
             </button>
@@ -831,7 +835,7 @@ function PreviewModal({ doc, onClose }) {
           </div>
 
           {/* Sticky footer */}
-          <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-d4l-border text-xs text-d4l-muted shrink-0 bg-d4l-raised">
+          <div className="flex items-center justify-between gap-3 px-4 md:px-5 border-t border-d4l-border text-xs text-d4l-muted shrink-0 bg-d4l-surface" style={{ minHeight: 48 }}>
             <span className="truncate">
               {doc.fileName} · {formatFileSize(doc.fileSize)}
             </span>
