@@ -16,6 +16,7 @@ import AccountManager from './components/AccountManager';
 import VialStockReport from './components/VialStockReport';
 import ConsumablesStockReport from './components/ConsumablesStockReport';
 import BranchTransfers from './components/BranchTransfers';
+import Documents from './components/Documents';
 import { Loader2 } from 'lucide-react';
 
 function getMonday(d) {
@@ -79,6 +80,12 @@ export default function App() {
   const [scheduleStatus, setScheduleStatus] = useState(() =>
     loadFromStorage(STORAGE_KEYS.SCHEDULE_STATUS, {})
   );
+  const [documents, setDocuments] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.DOCUMENTS, {})
+  );
+  const [documentAudits, setDocumentAudits] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.DOCUMENT_AUDITS, {})
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isMobile = useIsMobile();
 
@@ -133,6 +140,8 @@ export default function App() {
   useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
   useEffect(() => { if (canSave(STORAGE_KEYS.PUBLISHED_SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, publishedSchedules); }, [publishedSchedules]);
   useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULE_STATUS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULE_STATUS, scheduleStatus); }, [scheduleStatus]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.DOCUMENTS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.DOCUMENTS, documents); }, [documents]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.DOCUMENT_AUDITS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits); }, [documentAudits]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -221,6 +230,18 @@ export default function App() {
       setScheduleStatus(data || {});
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.SCHEDULE_STATUS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.DOCUMENTS, (data) => {
+      fromFirebase.current = true;
+      setDocuments(data || {});
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.DOCUMENTS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.DOCUMENT_AUDITS, (data) => {
+      fromFirebase.current = true;
+      setDocumentAudits(data || {});
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.DOCUMENT_AUDITS)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
@@ -544,6 +565,18 @@ export default function App() {
           />
         )}
 
+        {isAdmin && activePage === 'documents' && (
+          <Documents
+            documents={documents}
+            setDocuments={setDocuments}
+            documentAudits={documentAudits}
+            setDocumentAudits={setDocumentAudits}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
         {/* === HR PAGES === */}
         {isHR && activePage === 'schedule' && (
           <WeeklySchedule
@@ -623,6 +656,18 @@ export default function App() {
             setBranchTransfers={setBranchTransfers}
             vialStock={vialStock}
             consumablesStock={consumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {isHR && activePage === 'documents' && (
+          <Documents
+            documents={documents}
+            setDocuments={setDocuments}
+            documentAudits={documentAudits}
+            setDocumentAudits={setDocumentAudits}
             userRole={userRole}
             currentUser={currentUser}
             staffName={currentStaffName}
@@ -714,6 +759,18 @@ export default function App() {
             setBranchTransfers={staffSetBranchTransfers}
             vialStock={vialStock}
             consumablesStock={consumablesStock}
+            userRole={userRole}
+            currentUser={currentUser}
+            staffName={currentStaffName}
+          />
+        )}
+
+        {!isAdmin && activePage === 'documents' && (
+          <Documents
+            documents={documents}
+            setDocuments={() => {}}
+            documentAudits={{}}
+            setDocumentAudits={() => {}}
             userRole={userRole}
             currentUser={currentUser}
             staffName={currentStaffName}

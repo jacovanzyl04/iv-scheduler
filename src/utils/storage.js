@@ -16,6 +16,8 @@ const STORAGE_KEYS = {
   PAY_CYCLE_OVERTIME: 'iv-scheduler-pay-cycle-overtime',
   PUBLISHED_SCHEDULES: 'iv-scheduler-published-schedules',
   SCHEDULE_STATUS: 'iv-scheduler-schedule-status',
+  DOCUMENTS: 'iv-scheduler-documents',
+  DOCUMENT_AUDITS: 'iv-scheduler-document-audits',
 };
 
 // Firebase path mapping
@@ -33,6 +35,8 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.PAY_CYCLE_OVERTIME]: 'payCycleOvertime',
   [STORAGE_KEYS.PUBLISHED_SCHEDULES]: 'publishedSchedules',
   [STORAGE_KEYS.SCHEDULE_STATUS]: 'scheduleStatus',
+  [STORAGE_KEYS.DOCUMENTS]: 'documents',
+  [STORAGE_KEYS.DOCUMENT_AUDITS]: 'documentAudits',
 };
 
 export function loadFromStorage(key, defaultValue) {

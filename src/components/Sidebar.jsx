@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye, MoreHorizontal, Package, ShoppingCart, ArrowRightLeft } from 'lucide-react';
+import { Calendar, CalendarDays, Users, ClipboardList, Clock, LayoutDashboard, ChevronLeft, ChevronRight, Droplets, FileCheck, UserCog, LogOut, Eye, MoreHorizontal, Package, ShoppingCart, ArrowRightLeft, FolderOpen } from 'lucide-react';
 
 const adminNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -9,6 +9,7 @@ const adminNavItems = [
   { id: 'availability', label: 'Availability', icon: ClipboardList },
   { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
   { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
@@ -20,6 +21,7 @@ const staffNavItems = [
   { id: 'full-schedule', label: 'Full Schedule', icon: Eye },
   { id: 'my-availability', label: 'Availability', icon: ClipboardList },
   { id: 'my-timesheet', label: 'Timesheet', icon: FileCheck },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
@@ -31,6 +33,7 @@ const hrNavItems = [
   { id: 'staff', label: 'Staff', icon: Users },
   { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
   { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
@@ -48,6 +51,7 @@ const adminMoreItems = [
   { id: 'calendar', label: 'Monthly Calendar', icon: CalendarDays },
   { id: 'hours', label: 'Pay Cycle Hours', icon: Clock },
   { id: 'timesheets', label: 'Timesheets', icon: FileCheck },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
@@ -64,6 +68,7 @@ const hrBottomTabs = [
 
 const hrMoreItems = [
   { id: 'calendar', label: 'Monthly Calendar', icon: CalendarDays },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'vial-stock', label: 'Vial Stock', icon: Package },
   { id: 'consumables-stock', label: 'Stock Take', icon: ShoppingCart },
   { id: 'transfers', label: 'Transfers', icon: ArrowRightLeft },
