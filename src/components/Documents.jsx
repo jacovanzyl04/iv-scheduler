@@ -784,7 +784,7 @@ function PreviewModal({ doc, onClose }) {
     <>
       <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-40" onClick={onClose} />
       <div className="fixed inset-2 md:inset-4 z-50 flex items-center justify-center pointer-events-none">
-        <div className="bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full h-full max-w-5xl pointer-events-auto flex flex-col overflow-hidden" style={{ maxHeight: '1000px' }}>
+        <div className="bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full h-full max-w-[1600px] pointer-events-auto flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-4 md:px-5 border-b border-d4l-border shrink-0 bg-d4l-surface" style={{ minHeight: 52 }}>
             <div className="flex items-center gap-2 min-w-0 flex-1">
