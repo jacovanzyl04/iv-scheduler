@@ -521,6 +521,18 @@ export default function App() {
     }
   }, [currentUser, currentStaffName, linkedStaffId]);
 
+  // Bounce the user off any page they've lost access to. Must sit with the
+  // other hooks (before any early return) so React sees the same hook order
+  // on every render — moving this below the auth/login guards triggers
+  // Minified React Error #310.
+  useEffect(() => {
+    if (!userRole) return;
+    const permCheckUser = { role: userRole, permissions: userPermissions || {} };
+    if (!hasAccessToPage(permCheckUser, activePage)) {
+      setActivePage(userRole === 'admin' ? 'dashboard' : userRole === 'hr' ? 'schedule' : 'my-dashboard');
+    }
+  }, [userRole, userPermissions, activePage]);
+
   // Loading state
   if (authLoading) {
     return (
@@ -558,16 +570,6 @@ export default function App() {
 
   const isAdmin = userRole === 'admin';
   const isHR = userRole === 'hr';
-
-  // If admin revoked access to the page the user is currently viewing,
-  // bounce them to a safe landing (their dashboard).
-  const permCheckUser = { role: userRole, permissions: userPermissions || {} };
-  useEffect(() => {
-    if (!userRole) return;
-    if (!hasAccessToPage(permCheckUser, activePage)) {
-      setActivePage(userRole === 'admin' ? 'dashboard' : userRole === 'hr' ? 'schedule' : 'my-dashboard');
-    }
-  }, [userRole, userPermissions, activePage]);
 
   return (
     <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole} audits={audits}>
