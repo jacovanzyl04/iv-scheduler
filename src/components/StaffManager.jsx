@@ -1,9 +1,13 @@
 import { useState, useMemo } from 'react';
 import { BRANCHES, isScheduleRole } from '../data/initialData';
-import { UserPlus, Edit2, Trash2, X, Star, MapPin, Clock, AlertCircle, Search, Users, Briefcase, History } from 'lucide-react';
+import { UserPlus, Edit2, Trash2, X, Star, MapPin, Clock, AlertCircle, Search, Users, Briefcase, History, ShieldCheck, Plus, Calendar } from 'lucide-react';
 import { useAudit, useAudits } from '../contexts/AuditContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
+import {
+  getCertStatus, CERT_STATUS_STYLES, COMMON_CERT_TYPES, formatExpiryRelative,
+  summarizeCerts, genCertId,
+} from '../utils/certExpiry';
 
 const STAFF_COLORS = [
   { id: null, label: 'None', hex: null },
@@ -32,6 +36,7 @@ const EMPTY_STAFF = {
   weekendBothOrNone: false,
   color: null,
   notes: '',
+  certifications: [],
 };
 
 const ROLE_BORDER = {
@@ -82,6 +87,32 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
     if (JSON.stringify(before?.availableDays) !== JSON.stringify(after?.availableDays)) {
       changes.push({ field: 'availableDays', from: Array.isArray(before?.availableDays) ? before.availableDays.join(', ') : '(any)', to: Array.isArray(after?.availableDays) ? after.availableDays.join(', ') : '(any)' });
     }
+
+    // Certifications — compare by id
+    const beforeCerts = Array.isArray(before?.certifications) ? before.certifications : [];
+    const afterCerts = Array.isArray(after?.certifications) ? after.certifications : [];
+    const beforeById = new Map(beforeCerts.map(c => [c.id, c]));
+    const afterById = new Map(afterCerts.map(c => [c.id, c]));
+    for (const [id, beforeCert] of beforeById) {
+      if (!afterById.has(id)) {
+        changes.push({ field: `certification removed`, from: `${beforeCert.type || '—'} (expires ${beforeCert.expiryDate || '—'})`, to: '(removed)' });
+      }
+    }
+    for (const [id, afterCert] of afterById) {
+      const beforeCert = beforeById.get(id);
+      if (!beforeCert) {
+        changes.push({ field: `certification added`, from: '(new)', to: `${afterCert.type || '—'} (expires ${afterCert.expiryDate || '—'})` });
+      } else {
+        const certFields = ['type', 'number', 'issuingBody', 'issuedDate', 'expiryDate', 'notes'];
+        const diffs = certFields.filter(f => (beforeCert[f] || '') !== (afterCert[f] || ''));
+        if (diffs.length) {
+          const label = afterCert.type || beforeCert.type || 'certification';
+          const summary = diffs.map(f => `${f}: "${beforeCert[f] || '—'}" → "${afterCert[f] || '—'}"`).join(', ');
+          changes.push({ field: `certification updated (${label})`, from: beforeCert.expiryDate || '—', to: summary });
+        }
+      }
+    }
+
     return changes;
   };
 
@@ -275,6 +306,7 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
                     <div className="flex items-center gap-1.5">
                       <h3 className="font-semibold text-d4l-text text-sm truncate">{member.name}</h3>
                       {member.priority && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />}
+                      <CertBadge certifications={member.certifications} />
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="flex items-center gap-1 text-xs text-d4l-muted">
@@ -659,6 +691,12 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
                   </div>
                 </div>
               </div>
+
+              {/* Certifications */}
+              <CertificationsEditor
+                certifications={formData.certifications || []}
+                onChange={(certifications) => setFormData({ ...formData, certifications })}
+              />
             </div>
 
             {/* Modal footer */}
@@ -680,6 +718,210 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ===================================================================
+   CertBadge — tiny indicator shown next to a staff name on the card
+   when any certification is expired or expiring soon.
+   =================================================================== */
+function CertBadge({ certifications }) {
+  const summary = summarizeCerts(certifications);
+  if (summary.total === 0) return null;
+  if (summary.worstStatus === 'ok' || summary.worstStatus === 'unknown') return null;
+  const style = CERT_STATUS_STYLES[summary.worstStatus];
+  const count = summary.counts.expired + summary.counts.soon + summary.counts.check;
+  return (
+    <span
+      className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${style.badge} shrink-0`}
+      title={`${count} certification${count === 1 ? '' : 's'} ${style.label.toLowerCase()}`}
+    >
+      <ShieldCheck className="w-2.5 h-2.5" />
+      {count}
+    </span>
+  );
+}
+
+/* ===================================================================
+   Certifications editor — embedded in the staff edit modal
+   =================================================================== */
+function CertificationsEditor({ certifications, onChange }) {
+  const addCert = () => {
+    onChange([
+      ...certifications,
+      {
+        id: genCertId(),
+        type: '',
+        number: '',
+        issuingBody: '',
+        issuedDate: '',
+        expiryDate: '',
+        notes: '',
+      },
+    ]);
+  };
+
+  const updateCert = (id, patch) => {
+    onChange(certifications.map(c => (c.id === id ? { ...c, ...patch } : c)));
+  };
+
+  const removeCert = (id) => {
+    onChange(certifications.filter(c => c.id !== id));
+  };
+
+  const summary = summarizeCerts(certifications);
+  const worstStyle = CERT_STATUS_STYLES[summary.worstStatus];
+
+  return (
+    <div className="pt-4 border-t border-d4l-border">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-d4l-gold" />
+          <span className="text-xs font-semibold text-d4l-dim uppercase tracking-wider">Certifications & Licences</span>
+          {summary.total > 0 && (
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${worstStyle.badge}`}>
+              {summary.total} · {worstStyle.label}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={addCert}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-d4l-gold text-black rounded-md hover:bg-d4l-gold-dark font-semibold transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Add
+        </button>
+      </div>
+
+      {certifications.length === 0 ? (
+        <div className="bg-d4l-bg border border-dashed border-d4l-border rounded-lg p-4 text-center text-xs text-d4l-dim">
+          No certifications recorded. Click <span className="text-d4l-gold font-semibold">Add</span> to track a registration, licence or certificate with expiry.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {certifications.map((cert, idx) => (
+            <CertCard
+              key={cert.id || idx}
+              cert={cert}
+              onChange={(patch) => updateCert(cert.id, patch)}
+              onRemove={() => removeCert(cert.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CertCard({ cert, onChange, onRemove }) {
+  const { status, daysRemaining } = getCertStatus(cert.expiryDate);
+  const style = CERT_STATUS_STYLES[status];
+
+  return (
+    <div className="bg-d4l-bg border border-d4l-border rounded-lg overflow-hidden">
+      <div className={`h-[2px] ${style.dot}`} />
+      <div className="p-3 space-y-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${style.badge}`}>
+              {style.label}
+            </span>
+            {cert.expiryDate && (
+              <span className={`text-[11px] ${style.text}`}>
+                {formatExpiryRelative(cert.expiryDate)}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1 rounded text-d4l-dim hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            title="Remove certification"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Type with suggestions */}
+        <div>
+          <label className="block text-[10px] font-medium text-d4l-muted uppercase tracking-wide mb-1">Type *</label>
+          <input
+            type="text"
+            list="cert-type-list"
+            value={cert.type || ''}
+            onChange={(e) => onChange({ type: e.target.value })}
+            placeholder="e.g. SANC Registration"
+            className="w-full px-3 py-1.5 bg-d4l-surface border border-d4l-border rounded-md text-sm text-d4l-text focus:outline-none focus:border-d4l-gold/60"
+          />
+          <datalist id="cert-type-list">
+            {COMMON_CERT_TYPES.map(t => <option key={t} value={t} />)}
+          </datalist>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[10px] font-medium text-d4l-muted uppercase tracking-wide mb-1">Number</label>
+            <input
+              type="text"
+              value={cert.number || ''}
+              onChange={(e) => onChange({ number: e.target.value })}
+              placeholder="Reg / licence #"
+              className="w-full px-3 py-1.5 bg-d4l-surface border border-d4l-border rounded-md text-sm text-d4l-text focus:outline-none focus:border-d4l-gold/60"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-d4l-muted uppercase tracking-wide mb-1">Issuing body</label>
+            <input
+              type="text"
+              value={cert.issuingBody || ''}
+              onChange={(e) => onChange({ issuingBody: e.target.value })}
+              placeholder="e.g. SANC"
+              className="w-full px-3 py-1.5 bg-d4l-surface border border-d4l-border rounded-md text-sm text-d4l-text focus:outline-none focus:border-d4l-gold/60"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[10px] font-medium text-d4l-muted uppercase tracking-wide mb-1">Issued</label>
+            <div className="relative">
+              <Calendar className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-d4l-dim pointer-events-none" />
+              <input
+                type="date"
+                value={cert.issuedDate || ''}
+                onChange={(e) => onChange({ issuedDate: e.target.value })}
+                className="w-full pl-8 pr-2 py-1.5 bg-d4l-surface border border-d4l-border rounded-md text-sm text-d4l-text focus:outline-none focus:border-d4l-gold/60"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-d4l-muted uppercase tracking-wide mb-1">Expires *</label>
+            <div className="relative">
+              <Calendar className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-d4l-dim pointer-events-none" />
+              <input
+                type="date"
+                value={cert.expiryDate || ''}
+                onChange={(e) => onChange({ expiryDate: e.target.value })}
+                className="w-full pl-8 pr-2 py-1.5 bg-d4l-surface border border-d4l-border rounded-md text-sm text-d4l-text focus:outline-none focus:border-d4l-gold/60"
+              />
+            </div>
+          </div>
+        </div>
+
+        {cert.notes !== undefined && (
+          <div>
+            <label className="block text-[10px] font-medium text-d4l-muted uppercase tracking-wide mb-1">Notes</label>
+            <input
+              type="text"
+              value={cert.notes || ''}
+              onChange={(e) => onChange({ notes: e.target.value })}
+              placeholder="Optional notes"
+              className="w-full px-3 py-1.5 bg-d4l-surface border border-d4l-border rounded-md text-sm text-d4l-text focus:outline-none focus:border-d4l-gold/60"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

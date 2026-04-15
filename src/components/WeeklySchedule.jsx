@@ -8,6 +8,8 @@ import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, Al
 import { useAudit, useAudits } from '../contexts/AuditContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
+import { ShieldCheck } from 'lucide-react';
+import { getCertStatus, CERT_STATUS_STYLES, summarizeCerts, formatExpiryRelative } from '../utils/certExpiry';
 
 // Format "HH:MM" -> short hour display: "9", "13", "17"
 function fmtHour(t) {
@@ -106,8 +108,48 @@ export default function WeeklySchedule({
     return DAYS_OF_WEEK[idx] || 'Monday';
   });
 
-  const { warnings, errors } = validateSchedule(schedule, staff);
+  const { warnings: baseWarnings, errors: baseErrors } = validateSchedule(schedule, staff);
   const weeklyHours = calculateWeeklyHours(schedule, staff);
+
+  // Collect licence warnings for staff actually scheduled this week.
+  // Expired certs surface as errors; expiring-soon (≤30 days) as warnings.
+  const licenseIssues = useMemo(() => {
+    const scheduledStaffIds = new Set();
+    for (const day of Object.values(schedule || {})) {
+      for (const cell of Object.values(day || {})) {
+        for (const n of cell?.nurses || []) if (n?.id) scheduledStaffIds.add(n.id);
+        for (const r of cell?.receptionists || []) if (r?.id) scheduledStaffIds.add(r.id);
+      }
+    }
+    const out = { errors: [], warnings: [] };
+    for (const id of scheduledStaffIds) {
+      const member = staff.find(s => s.id === id);
+      if (!member?.certifications?.length) continue;
+      for (const cert of member.certifications) {
+        const { status } = getCertStatus(cert?.expiryDate);
+        const label = `${member.name} — ${cert.type || 'certification'} ${formatExpiryRelative(cert.expiryDate)}`;
+        if (status === 'expired') out.errors.push(label);
+        else if (status === 'soon') out.warnings.push(label);
+      }
+    }
+    return out;
+  }, [schedule, staff]);
+
+  const warnings = [...licenseIssues.warnings, ...(baseWarnings || [])];
+  const errors = [...licenseIssues.errors, ...(baseErrors || [])];
+
+  // Map staffId → worst cert status for quick in-cell lookups
+  const staffCertStatus = useMemo(() => {
+    const map = {};
+    for (const s of staff) {
+      if (!s.certifications?.length) continue;
+      const { worstStatus, counts } = summarizeCerts(s.certifications);
+      if (worstStatus === 'expired' || worstStatus === 'soon') {
+        map[s.id] = { status: worstStatus, count: counts.expired + counts.soon + counts.check };
+      }
+    }
+    return map;
+  }, [staff]);
 
   useEffect(() => {
     if (!showActionsMenu) return;
@@ -472,6 +514,12 @@ export default function WeeklySchedule({
         <span className="flex-1 truncate text-d4l-text2 font-medium leading-tight">
           {person.name}
         </span>
+        {staffCertStatus[person.id] && (
+          <span
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${CERT_STATUS_STYLES[staffCertStatus[person.id].status].dot}`}
+            title={`${staffCertStatus[person.id].count} certification(s) ${CERT_STATUS_STYLES[staffCertStatus[person.id].status].label.toLowerCase()}`}
+          />
+        )}
         {timeRange && (
           <span className="text-[10px] text-d4l-dim shrink-0">{timeRange}</span>
         )}
