@@ -27,6 +27,7 @@ export const AUDIT_DOMAINS = {
   AVAILABILITY: 'availability',
   STOCK:        'stock',
   TRANSFERS:    'transfers',
+  TODOS:        'todos',
   SYSTEM:       'system',
 };
 
@@ -40,6 +41,7 @@ export const DOMAIN_LABELS = {
   availability: 'Availability',
   stock:        'Stock',
   transfers:    'Transfers',
+  todos:        'Daily Tasks',
   system:       'System',
 };
 
@@ -54,6 +56,7 @@ export const DOMAIN_STYLES = {
   availability: { color: 'text-teal-300',     bg: 'bg-teal-500/10',     border: 'border-teal-500/30' },
   stock:        { color: 'text-indigo-300',   bg: 'bg-indigo-500/10',   border: 'border-indigo-500/30' },
   transfers:    { color: 'text-fuchsia-300',  bg: 'bg-fuchsia-500/10',  border: 'border-fuchsia-500/30' },
+  todos:        { color: 'text-lime-300',     bg: 'bg-lime-500/10',     border: 'border-lime-500/30' },
   system:       { color: 'text-d4l-muted',    bg: 'bg-d4l-hover/40',    border: 'border-d4l-border' },
 };
 
@@ -105,6 +108,11 @@ export const ACTION_LABELS = {
   // Transfers
   'transfers.created':   'Transfer created',
   'transfers.deleted':   'Transfer deleted',
+  // Daily tasks / todos
+  'todos.template_updated': 'Task list updated',
+  'todos.item_added':       'Task added',
+  'todos.item_removed':     'Task removed',
+  'todos.item_edited':      'Task edited',
 };
 
 function genId() {

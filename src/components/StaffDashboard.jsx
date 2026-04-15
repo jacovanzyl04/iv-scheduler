@@ -4,6 +4,7 @@ import { getPayCycleForDate, getPayCycleRange, getWeekKeysForPayCycle } from '..
 import { hoursBetween } from '../utils/scheduler';
 import { ChevronLeft, ChevronRight, CalendarDays, Clock, ClipboardList, FileCheck } from 'lucide-react';
 import { useIsMobile } from './Sidebar';
+import TodoListWidget from './TodoListWidget';
 
 function formatWeekRange(weekStart) {
   const start = new Date(weekStart);
@@ -24,6 +25,8 @@ export default function StaffDashboard({
   staffId, staff, schedules, currentWeekStart, weekKey,
   goToPrevWeek, goToNextWeek, goToToday, setActivePage,
   scheduleStatus,
+  // Todo widget
+  todoTemplates, todoCompletions, toggleTodoCompletion, userRole,
 }) {
   const member = staff.find(s => s.id === staffId);
   const currentSchedule = schedules[weekKey] || {};
@@ -143,6 +146,19 @@ export default function StaffDashboard({
           Welcome, {member?.name || 'Staff'}
         </h1>
         <p className="text-d4l-muted text-sm">Your schedule and hours overview</p>
+      </div>
+
+      {/* Daily tasks */}
+      <div className="mb-6">
+        <TodoListWidget
+          staff={staff}
+          publishedSchedule={currentSchedule}
+          templates={todoTemplates}
+          completions={todoCompletions}
+          onToggle={toggleTodoCompletion}
+          userRole={userRole}
+          linkedStaffId={staffId}
+        />
       </div>
 
       {/* Quick Links */}

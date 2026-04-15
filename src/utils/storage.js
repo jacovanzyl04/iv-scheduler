@@ -1,4 +1,4 @@
-import { db, ref, set, onValue, isConfigured as firebaseConfigured } from './firebase';
+import { db, ref, set, remove, onValue, isConfigured as firebaseConfigured } from './firebase';
 
 const isConfigured = firebaseConfigured;
 
@@ -19,6 +19,8 @@ const STORAGE_KEYS = {
   DOCUMENTS: 'iv-scheduler-documents',
   DOCUMENT_AUDITS: 'iv-scheduler-document-audits',
   AUDITS: 'iv-scheduler-audits',
+  TODO_TEMPLATES: 'iv-scheduler-todo-templates',
+  TODO_COMPLETIONS: 'iv-scheduler-todo-completions',
 };
 
 // Firebase path mapping
@@ -39,6 +41,8 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.DOCUMENTS]: 'documents',
   [STORAGE_KEYS.DOCUMENT_AUDITS]: 'documentAudits',
   [STORAGE_KEYS.AUDITS]: 'audits',
+  [STORAGE_KEYS.TODO_TEMPLATES]: 'todoTemplates',
+  [STORAGE_KEYS.TODO_COMPLETIONS]: 'todoCompletions',
 };
 
 export function loadFromStorage(key, defaultValue) {
@@ -95,6 +99,14 @@ export function saveFirebaseChild(parentPath, childKey, data) {
   if (!isConfigured || !db) return;
   set(ref(db, `${parentPath}/${childKey}`), stripUndefined(data)).catch(e => {
     console.error(`Failed to save ${parentPath}/${childKey}:`, e);
+  });
+}
+
+// Remove a single child at a sub-path.
+export function removeFirebaseChild(parentPath, childKey) {
+  if (!isConfigured || !db) return;
+  remove(ref(db, `${parentPath}/${childKey}`)).catch(e => {
+    console.error(`Failed to remove ${parentPath}/${childKey}:`, e);
   });
 }
 

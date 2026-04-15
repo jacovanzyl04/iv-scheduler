@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen } from '../data/initialData';
 import { validateSchedule, calculateWeeklyHours } from '../utils/scheduler';
 import { ChevronLeft, ChevronRight, AlertTriangle, AlertCircle, CheckCircle2, Users, Clock } from 'lucide-react';
+import TodoListWidget from './TodoListWidget';
+import TodoEditor from './TodoEditor';
 
 function formatWeekRange(weekStart) {
   const start = new Date(weekStart);
@@ -13,12 +15,17 @@ function formatWeekRange(weekStart) {
 
 const DAYS_MAP = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export default function Dashboard({ schedule, staff, weekStartDate, currentWeekStart, goToPrevWeek, goToNextWeek, goToToday }) {
+export default function Dashboard({
+  schedule, staff, weekStartDate, currentWeekStart, goToPrevWeek, goToNextWeek, goToToday,
+  // Todo widget props
+  todoTemplates, setTodoTemplates, todoCompletions, toggleTodoCompletion, userRole,
+}) {
   const { warnings, errors } = validateSchedule(schedule, staff);
   const weeklyHours = calculateWeeklyHours(schedule, staff);
 
   const [hoverInfo, setHoverInfo] = useState(null);
   const [issuesOpen, setIssuesOpen] = useState(false);
+  const [todoEditorOpen, setTodoEditorOpen] = useState(false);
 
   // Time greeting
   const now = new Date();
@@ -135,6 +142,27 @@ export default function Dashboard({ schedule, staff, weekStartDate, currentWeekS
           </button>
         </div>
       </div>
+
+      {/* ===== DAILY TASKS WIDGET ===== */}
+      <div className="mb-6 md:mb-8 section-animate">
+        <TodoListWidget
+          staff={staff}
+          schedule={schedule}
+          templates={todoTemplates}
+          completions={todoCompletions}
+          onToggle={toggleTodoCompletion}
+          onEdit={userRole === 'admin' ? () => setTodoEditorOpen(true) : null}
+          userRole={userRole}
+        />
+      </div>
+
+      {todoEditorOpen && (
+        <TodoEditor
+          templates={todoTemplates}
+          setTemplates={setTodoTemplates}
+          onClose={() => setTodoEditorOpen(false)}
+        />
+      )}
 
       {/* ===== SECTION 2: PREMIUM STAT CARDS ===== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">

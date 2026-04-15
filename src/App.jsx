@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { INITIAL_STAFF, BRANCHES, DAYS_OF_WEEK } from './data/initialData';
-import { STORAGE_KEYS, loadFromStorage, saveToStorage, saveLocal, saveFirebase, subscribeToFirebase, isConfigured } from './utils/storage';
+import { STORAGE_KEYS, loadFromStorage, saveToStorage, saveLocal, saveFirebase, saveFirebaseChild, removeFirebaseChild, subscribeToFirebase, isConfigured } from './utils/storage';
 import { auth, db, ref, set, onValue, onAuthStateChanged, signOut } from './utils/firebase';
 import Sidebar, { useIsMobile } from './components/Sidebar';
 import LoginPage from './components/LoginPage';
@@ -92,6 +92,12 @@ export default function App() {
   const [audits, setAudits] = useState(() =>
     loadFromStorage(STORAGE_KEYS.AUDITS, {})
   );
+  const [todoTemplates, setTodoTemplates] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.TODO_TEMPLATES, null)
+  );
+  const [todoCompletions, setTodoCompletions] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.TODO_COMPLETIONS, {})
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isMobile = useIsMobile();
 
@@ -166,6 +172,18 @@ export default function App() {
     if (fromFirebase.current) return;
     saveLocal(STORAGE_KEYS.AUDITS, audits);
   }, [audits]);
+  // Todo templates: admin-edited, low frequency — full state replace is fine.
+  useEffect(() => {
+    if (fromFirebase.current) return;
+    saveLocal(STORAGE_KEYS.TODO_TEMPLATES, todoTemplates);
+    if (canSave(STORAGE_KEYS.TODO_TEMPLATES)) saveFirebase(STORAGE_KEYS.TODO_TEMPLATES, todoTemplates);
+  }, [todoTemplates]);
+  // Completions: written directly via saveFirebaseChild when a staff
+  // ticks a box, so here we only mirror to localStorage.
+  useEffect(() => {
+    if (fromFirebase.current) return;
+    saveLocal(STORAGE_KEYS.TODO_COMPLETIONS, todoCompletions);
+  }, [todoCompletions]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -276,6 +294,20 @@ export default function App() {
       setAudits(prev => ({ ...(prev || {}), ...(data || {}) }));
       setTimeout(() => { fromFirebase.current = false; }, 0);
     }, markLoaded(STORAGE_KEYS.AUDITS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.TODO_TEMPLATES, (data) => {
+      fromFirebase.current = true;
+      setTodoTemplates(data || null);
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.TODO_TEMPLATES)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.TODO_COMPLETIONS, (data) => {
+      fromFirebase.current = true;
+      // Per-staff per-day per-item map. Merge by top-level date key so we
+      // never wipe earlier days when only today's node comes through.
+      setTodoCompletions(prev => ({ ...(prev || {}), ...(data || {}) }));
+      setTimeout(() => { fromFirebase.current = false; }, 0);
+    }, markLoaded(STORAGE_KEYS.TODO_COMPLETIONS)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
@@ -444,6 +476,34 @@ export default function App() {
   // Resolve staff name for current user
   const currentStaffName = linkedStaffId ? (staff.find(s => s.id === linkedStaffId)?.name || null) : null;
 
+  // Toggle a single todo item completion for a staff on a given date.
+  // Uses a child-path write so two people ticking boxes at the same time
+  // never clobber each other. Writes null to Firebase when unchecking.
+  const toggleTodoCompletion = useCallback((dateStr, staffId, itemId, done) => {
+    const entry = done
+      ? { at: Date.now(), byName: (staffId === linkedStaffId ? currentStaffName : null) || currentUser?.email?.split('@')[0] || 'Unknown' }
+      : null;
+
+    setTodoCompletions(prev => {
+      const next = { ...(prev || {}) };
+      const dayMap = { ...(next[dateStr] || {}) };
+      const staffMap = { ...(dayMap[staffId] || {}) };
+      if (done) staffMap[itemId] = entry;
+      else delete staffMap[itemId];
+      if (Object.keys(staffMap).length) dayMap[staffId] = staffMap;
+      else delete dayMap[staffId];
+      if (Object.keys(dayMap).length) next[dateStr] = dayMap;
+      else delete next[dateStr];
+      return next;
+    });
+
+    if (done) {
+      saveFirebaseChild('todoCompletions', `${dateStr}/${staffId}/${itemId}`, entry);
+    } else {
+      removeFirebaseChild('todoCompletions', `${dateStr}/${staffId}/${itemId}`);
+    }
+  }, [currentUser, currentStaffName, linkedStaffId]);
+
   // Loading state
   if (authLoading) {
     return (
@@ -507,6 +567,11 @@ export default function App() {
             goToPrevWeek={goToPrevWeek}
             goToNextWeek={goToNextWeek}
             goToToday={goToToday}
+            todoTemplates={todoTemplates}
+            setTodoTemplates={setTodoTemplates}
+            todoCompletions={todoCompletions}
+            toggleTodoCompletion={toggleTodoCompletion}
+            userRole={userRole}
           />
         )}
 
@@ -734,6 +799,10 @@ export default function App() {
             goToToday={goToToday}
             setActivePage={setActivePage}
             scheduleStatus={scheduleStatus}
+            todoTemplates={todoTemplates}
+            todoCompletions={todoCompletions}
+            toggleTodoCompletion={toggleTodoCompletion}
+            userRole={userRole}
           />
         )}
 
