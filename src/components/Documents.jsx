@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FolderOpen, Upload, Search, Download, Pencil, Trash2, Pin, PinOff,
   FileText, Image as ImageIcon, File, X, History, Eye, MoreVertical,
@@ -519,10 +520,10 @@ function useLockBodyScroll() {
 
 function ModalShell({ title, onClose, children, widthClass = 'max-w-md' }) {
   useLockBodyScroll();
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" onClick={onClose} />
+      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
         <div className={`bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full ${widthClass} pointer-events-auto max-h-[90vh] flex flex-col`}>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-d4l-border shrink-0">
             <h2 className="text-base font-semibold text-d4l-text truncate pr-4">{title}</h2>
@@ -536,7 +537,8 @@ function ModalShell({ title, onClose, children, widthClass = 'max-w-md' }) {
           <div className="overflow-y-auto">{children}</div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
@@ -780,10 +782,10 @@ function PreviewModal({ doc, onClose }) {
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-40" onClick={onClose} />
-      <div className="fixed inset-2 md:inset-4 z-50 flex items-center justify-center pointer-events-none">
+      <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[100]" onClick={onClose} />
+      <div className="fixed inset-2 md:inset-4 z-[101] flex items-center justify-center pointer-events-none">
         <div className="bg-d4l-raised border border-d4l-border rounded-xl shadow-2xl w-full h-full max-w-[1600px] pointer-events-auto flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-4 md:px-5 border-b border-d4l-border shrink-0 bg-d4l-surface" style={{ minHeight: 52 }}>
@@ -851,7 +853,8 @@ function PreviewModal({ doc, onClose }) {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
