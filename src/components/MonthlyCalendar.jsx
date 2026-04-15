@@ -99,24 +99,24 @@ export default function MonthlyCalendar({ schedules, staff }) {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-[1800px] mx-auto">
 
       {/* ===== HEADER ===== */}
-      <div className="flex items-center justify-between mb-6 section-animate">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 section-animate">
         <div>
-          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             Monthly Calendar
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Bird's-eye view of the full month</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <button onClick={goToPrevMonth} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button onClick={goToThisMonth} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             This Month
           </button>
-          <span className="text-xl font-bold text-d4l-text min-w-[200px] text-center" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <span className="text-xl lg:text-2xl font-bold text-d4l-text min-w-[160px] lg:min-w-[200px] text-center" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             {MONTH_NAMES[month]} {year}
           </span>
           <button onClick={goToNextMonth} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">
@@ -124,7 +124,7 @@ export default function MonthlyCalendar({ schedules, staff }) {
           </button>
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow ml-2 text-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow ml-0 md:ml-2 text-sm"
           >
             <Download className="w-4 h-4" />
             Export
@@ -133,15 +133,15 @@ export default function MonthlyCalendar({ schedules, staff }) {
       </div>
 
       {/* ===== LEGEND ===== */}
-      <div className="flex items-center gap-5 mb-4 section-animate">
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-400" /><span className="text-[10px] text-d4l-dim">Fully staffed</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-400" /><span className="text-[10px] text-d4l-dim">Missing nurse</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-400" /><span className="text-[10px] text-d4l-dim">Missing receptionist</span></div>
+      <div className="flex items-center flex-wrap gap-x-5 gap-y-2 mb-4 section-animate">
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full bg-green-400" /><span className="text-[10px] lg:text-xs text-d4l-dim">Fully staffed</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full bg-red-400" /><span className="text-[10px] lg:text-xs text-d4l-dim">Missing nurse</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full bg-amber-400" /><span className="text-[10px] lg:text-xs text-d4l-dim">Missing receptionist</span></div>
         <div className="w-px h-3 bg-d4l-border" />
         {BRANCHES.map(b => (
           <div key={b.id} className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: b.color }} />
-            <span className="text-[10px] text-d4l-dim">{b.name}</span>
+            <div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full" style={{ backgroundColor: b.color }} />
+            <span className="text-[10px] lg:text-xs text-d4l-dim">{b.name}</span>
           </div>
         ))}
       </div>
@@ -151,8 +151,8 @@ export default function MonthlyCalendar({ schedules, staff }) {
         {/* Day headers */}
         <div className="grid grid-cols-7 bg-d4l-bg border-b border-d4l-border">
           {WEEKDAY_HEADERS.map(d => (
-            <div key={d} className="p-2.5 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-d4l-muted">{d}</span>
+            <div key={d} className="p-2.5 lg:p-3 text-center">
+              <span className="text-[10px] lg:text-xs xl:text-sm font-semibold uppercase tracking-wider text-d4l-muted">{d}</span>
             </div>
           ))}
         </div>
@@ -168,7 +168,7 @@ export default function MonthlyCalendar({ schedules, staff }) {
               return (
                 <div
                   key={di}
-                  className={`min-h-[100px] p-2 border-r border-d4l-border last:border-r-0 transition-colors ${
+                  className={`min-h-[100px] md:min-h-[130px] lg:min-h-[150px] xl:min-h-[170px] p-2 lg:p-3 border-r border-d4l-border last:border-r-0 transition-colors ${
                     inMonth ? '' : 'opacity-25'
                   } ${todayHighlight ? 'bg-d4l-gold/[0.04]' : 'hover:bg-d4l-hover/20'}`}
                   onMouseEnter={(e) => {
@@ -179,18 +179,18 @@ export default function MonthlyCalendar({ schedules, staff }) {
                   onMouseLeave={() => setHoverInfo(null)}
                 >
                   {/* Day number */}
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <span className={`text-sm font-bold ${
+                  <div className="flex items-center gap-1 mb-1.5 lg:mb-2">
+                    <span className={`text-sm lg:text-base xl:text-lg font-bold ${
                       todayHighlight ? 'text-d4l-gold' : inMonth ? 'text-d4l-text' : 'text-d4l-dim'
                     }`}>
                       {date.getDate()}
                     </span>
-                    {todayHighlight && <div className="h-[2px] w-4 bg-d4l-gold rounded-full" />}
+                    {todayHighlight && <div className="h-[2px] w-4 lg:w-5 bg-d4l-gold rounded-full" />}
                   </div>
 
                   {/* Branch dots */}
                   {dayData && inMonth && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 lg:space-y-1.5">
                       {dayData.branches.map(b => {
                         if (!b.open) return null;
                         let dotClass = 'bg-green-400';
@@ -199,9 +199,9 @@ export default function MonthlyCalendar({ schedules, staff }) {
 
                         return (
                           <div key={b.id} className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full shrink-0 coverage-dot ${dotClass}`}
+                            <div className={`w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full shrink-0 coverage-dot ${dotClass}`}
                               style={b.hasNurse && (b.hasRec || b.isClinic) ? { backgroundColor: b.color } : {}} />
-                            <span className="text-[9px] text-d4l-dim truncate leading-tight">
+                            <span className="text-[9px] lg:text-[11px] xl:text-xs text-d4l-dim truncate leading-tight">
                               {b.nurses.length > 0
                                 ? b.nurses.map(n => n.name.split(' ')[0]).join(', ')
                                 : '—'}
