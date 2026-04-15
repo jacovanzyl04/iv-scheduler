@@ -86,6 +86,16 @@ export function saveFirebase(key, data) {
   });
 }
 
+// Save a single child at a sub-path (e.g. 'documentAudits/abc123').
+// Safe for append-only data because it doesn't touch sibling keys —
+// avoids clobbering a simultaneous write from another client.
+export function saveFirebaseChild(parentPath, childKey, data) {
+  if (!isConfigured || !db) return;
+  set(ref(db, `${parentPath}/${childKey}`), stripUndefined(data)).catch(e => {
+    console.error(`Failed to save ${parentPath}/${childKey}:`, e);
+  });
+}
+
 export function saveToStorage(key, data) {
   saveLocal(key, data);
   saveFirebase(key, data);

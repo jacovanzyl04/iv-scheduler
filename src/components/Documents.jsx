@@ -17,6 +17,7 @@ import {
   ACCEPT_ATTR,
   genId,
 } from '../utils/documentFiles';
+import { saveFirebaseChild } from '../utils/storage';
 
 /* =========================================================================
    Main component
@@ -82,16 +83,40 @@ export default function Documents({
       byRole: userRole || null,
       at: Date.now(),
     };
-    setDocumentAudits(prev => {
-      const next = { ...(prev || {}), [id]: { id, ...actor, ...entry } };
-      // Belt-and-braces: write to localStorage directly inside the updater
-      // so audit persistence does not depend on the useEffect chain firing.
-      try {
-        localStorage.setItem('iv-scheduler-document-audits', JSON.stringify(next));
-      } catch (err) {
-        console.warn('[pushAudit] failed to cache to localStorage', err);
-      }
-      return next;
+    const newEntry = { id, ...actor, ...entry };
+
+    // 1. Write to Firebase as a single child — safe for append-only data and
+    //    works for any authenticated user (admin, HR, or staff) regardless of
+    //    whether they hold the full audits state locally.
+    saveFirebaseChild('documentAudits', id, newEntry);
+
+    // 2. Merge into localStorage directly so persistence doesn't rely on the
+    //    useEffect chain firing.
+    try {
+      const existing = JSON.parse(localStorage.getItem('iv-scheduler-document-audits') || '{}');
+      existing[id] = newEntry;
+      localStorage.setItem('iv-scheduler-document-audits', JSON.stringify(existing));
+    } catch (err) {
+      console.warn('[pushAudit] failed to cache to localStorage', err);
+    }
+
+    // 3. Update React state so the Audits tab updates immediately for
+    //    admin/HR. For staff this is a no-op setter — that's fine, staff
+    //    don't see the tab.
+    setDocumentAudits(prev => ({ ...(prev || {}), [id]: newEntry }));
+  };
+
+  const logDownload = (doc) => {
+    if (!doc) return;
+    pushAudit({
+      action: 'downloaded',
+      docId: doc.id,
+      title: doc.title,
+      category: doc.category,
+      details: [
+        `File: ${doc.fileName}`,
+        `Size: ${formatFileSize(doc.fileSize)}`,
+      ],
     });
   };
 
@@ -267,6 +292,7 @@ export default function Documents({
                   onEdit={() => setEditDoc(doc)}
                   onDelete={() => setDeleteDoc(doc)}
                   onTogglePin={() => handleTogglePin(doc)}
+                  onDownload={() => logDownload(doc)}
                 />
               ))}
             </div>
@@ -313,6 +339,7 @@ export default function Documents({
         <PreviewModal
           doc={previewDoc}
           onClose={() => setPreviewDoc(null)}
+          onDownload={() => logDownload(previewDoc)}
         />
       )}
     </div>
@@ -383,7 +410,7 @@ function EmptyState({ icon, title, hint }) {
 }
 
 /* ------------------------------ Document card --------------------------- */
-function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin }) {
+function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin, onDownload }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [thumbError, setThumbError] = useState(false);
   const kind = doc.fileKind || getFileKind(doc.fileType);
@@ -449,6 +476,7 @@ function DocumentCard({ doc, canManage, onPreview, onEdit, onDelete, onTogglePin
           download={doc.fileName}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => onDownload && onDownload()}
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-d4l-gold hover:bg-d4l-gold/10 transition-colors"
         >
           <Download className="w-3.5 h-3.5" />
@@ -780,7 +808,7 @@ function DeleteConfirm({ doc, onClose, onConfirm }) {
   );
 }
 
-function PreviewModal({ doc, onClose }) {
+function PreviewModal({ doc, onClose, onDownload }) {
   useLockBodyScroll();
   const kind = doc.fileKind || getFileKind(doc.fileType);
 
@@ -855,6 +883,7 @@ function PreviewModal({ doc, onClose }) {
               download={doc.fileName}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => onDownload && onDownload()}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-d4l-gold text-black font-semibold rounded-md text-xs btn-glow shrink-0"
             >
               <Download className="w-3.5 h-3.5" /> Download
@@ -870,11 +899,12 @@ function PreviewModal({ doc, onClose }) {
 /* ------------------------------ Audits panel ---------------------------- */
 
 const ACTION_STYLES = {
-  uploaded: { label: 'Uploaded', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' },
-  edited:   { label: 'Edited',   color: 'text-d4l-gold', bg: 'bg-d4l-gold/10',  border: 'border-d4l-gold/30' },
-  deleted:  { label: 'Deleted',  color: 'text-red-400',  bg: 'bg-red-500/10',   border: 'border-red-500/30' },
-  pinned:   { label: 'Pinned',   color: 'text-blue-300', bg: 'bg-blue-500/10',  border: 'border-blue-500/30' },
-  unpinned: { label: 'Unpinned', color: 'text-d4l-muted',bg: 'bg-d4l-hover/40', border: 'border-d4l-border' },
+  uploaded:   { label: 'Uploaded',   color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' },
+  edited:     { label: 'Edited',     color: 'text-d4l-gold',  bg: 'bg-d4l-gold/10',  border: 'border-d4l-gold/30' },
+  deleted:    { label: 'Deleted',    color: 'text-red-400',   bg: 'bg-red-500/10',   border: 'border-red-500/30' },
+  downloaded: { label: 'Downloaded', color: 'text-cyan-300',  bg: 'bg-cyan-500/10',  border: 'border-cyan-500/30' },
+  pinned:     { label: 'Pinned',     color: 'text-blue-300',  bg: 'bg-blue-500/10',  border: 'border-blue-500/30' },
+  unpinned:   { label: 'Unpinned',   color: 'text-d4l-muted', bg: 'bg-d4l-hover/40', border: 'border-d4l-border' },
 };
 
 function AuditsPanel({ audits }) {
@@ -936,12 +966,13 @@ function AuditsPanel({ audits }) {
 function ActionFilter({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const options = [
-    { id: 'all',      label: 'All actions' },
-    { id: 'uploaded', label: 'Uploaded' },
-    { id: 'edited',   label: 'Edited' },
-    { id: 'deleted',  label: 'Deleted' },
-    { id: 'pinned',   label: 'Pinned' },
-    { id: 'unpinned', label: 'Unpinned' },
+    { id: 'all',        label: 'All actions' },
+    { id: 'uploaded',   label: 'Uploaded' },
+    { id: 'downloaded', label: 'Downloaded' },
+    { id: 'edited',     label: 'Edited' },
+    { id: 'deleted',    label: 'Deleted' },
+    { id: 'pinned',     label: 'Pinned' },
+    { id: 'unpinned',   label: 'Unpinned' },
   ];
   const current = options.find(o => o.id === value) || options[0];
   return (
