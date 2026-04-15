@@ -13,6 +13,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -525,6 +528,9 @@ export default function BranchTransfers({
   staffName,
 }) {
   const isMobile = useIsMobile();
+  const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
   const [showNewTransfer, setShowNewTransfer] = useState(false);
   const [filterBranch, setFilterBranch] = useState('all');
   const [filterType, setFilterType] = useState('all'); // 'all' | 'vials' | 'consumables'
@@ -535,6 +541,10 @@ export default function BranchTransfers({
   const isAdmin = userRole === 'admin';
   const isReadOnly = userRole === 'hr';
   const transfers = branchTransfers?.history || [];
+
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'transfers').length;
+  }, [allAudits]);
 
   // Stats
   const stats = useMemo(() => {
@@ -593,15 +603,44 @@ export default function BranchTransfers({
       ...prev,
       history: [...(prev.history || []), transfer],
     }));
+    const fromB = BRANCHES.find(b => b.id === transfer.fromBranch)?.name || transfer.fromBranch;
+    const toB = BRANCHES.find(b => b.id === transfer.toBranch)?.name || transfer.toBranch;
+    const itemCount = transfer.items?.length || 0;
+    audit({
+      domain: 'transfers',
+      action: 'created',
+      targetId: transfer.id,
+      targetLabel: `${fromB} → ${toB}`,
+      details: [
+        `Date: ${transfer.date || '—'}`,
+        `Items: ${itemCount}`,
+        transfer.notes ? `Notes: ${transfer.notes}` : null,
+      ].filter(Boolean),
+    });
   };
 
   const handleDeleteTransfer = (transferId) => {
+    const existing = (branchTransfers?.history || []).find(t => t.id === transferId);
     setBranchTransfers(prev => ({
       ...prev,
       history: (prev.history || []).filter(t => t.id !== transferId),
     }));
     setDeleteConfirmId(null);
     setSelectedTransfer(null);
+    if (existing) {
+      const fromB = BRANCHES.find(b => b.id === existing.fromBranch)?.name || existing.fromBranch;
+      const toB = BRANCHES.find(b => b.id === existing.toBranch)?.name || existing.toBranch;
+      audit({
+        domain: 'transfers',
+        action: 'deleted',
+        targetId: transferId,
+        targetLabel: `${fromB} → ${toB}`,
+        details: [
+          `Date: ${existing.date || '—'}`,
+          `Items: ${existing.items?.length || 0}`,
+        ],
+      });
+    }
   };
 
   // Export PDF
@@ -919,6 +958,20 @@ export default function BranchTransfers({
         </div>
       </div>
 
+      <PageTabs
+        tabs={[
+          { id: 'main', label: 'Transfers', icon: <ArrowRightLeft className="w-4 h-4" /> },
+          { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+        ]}
+        activeTab={pageTab}
+        onTabChange={setPageTab}
+      />
+
+      {pageTab === 'logs' ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="transfers" compact />
+      ) : (
+      <>
+
       {/* Stats cards */}
       <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-4'} gap-3 mb-5`}>
         <StatCard icon={Truck} label="Today" value={stats.today} color="green" subtitle="transfers today" />
@@ -1078,6 +1131,8 @@ export default function BranchTransfers({
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
 
       {/* New Transfer Modal */}

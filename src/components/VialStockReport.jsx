@@ -9,6 +9,9 @@ import {
   FileSpreadsheet, FileText, X, Edit3, Save, Search, Minus,
   CheckCircle2, CircleAlert, Share2
 } from 'lucide-react';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
@@ -349,6 +352,9 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
   const isAdmin = userRole === 'admin';
   const isReadOnly = userRole === 'hr';
   const isMobile = useIsMobile();
+  const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0].id);
   const [editingRow, setEditingRow] = useState(null);
   const [editData, setEditData] = useState({});
@@ -497,6 +503,17 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
       }],
     });
 
+    const vialName = vials.find(v => v.id === vialId)?.name || vialId;
+    const branchName = BRANCHES.find(b => b.id === selectedBranch)?.name || selectedBranch;
+    audit({
+      domain: 'stock',
+      action: 'quantity_changed',
+      targetId: vialId,
+      targetLabel: `Vial · ${vialName} · ${branchName}`,
+      changes: [{ field: 'Total quantity', from: String(previousTotalQty), to: String(newTotalQty) }],
+      details: [`Batches: ${cleanBatches.length}`],
+    });
+
     setEditingRow(null);
     setEditData({});
   }
@@ -548,11 +565,19 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
     const id = newVialName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
     if (vials.some(v => v.id === id)) return;
 
+    const upperName = newVialName.trim().toUpperCase();
     setVialStock({
       ...vialStock,
-      vials: [...vials, { id, name: newVialName.trim().toUpperCase(), minQty: Number(newVialMinQty) || 5 }],
+      vials: [...vials, { id, name: upperName, minQty: Number(newVialMinQty) || 5 }],
       stock,
       history,
+    });
+    audit({
+      domain: 'stock',
+      action: 'item_added',
+      targetId: id,
+      targetLabel: `Vial · ${upperName}`,
+      details: [`Min qty: ${Number(newVialMinQty) || 5}`],
     });
 
     setNewVialName('');
@@ -561,6 +586,7 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
   }
 
   function removeVial(vialId) {
+    const vialName = vials.find(v => v.id === vialId)?.name || vialId;
     const updatedVials = vials.filter(v => v.id !== vialId);
     const updatedStock = { ...stock };
     Object.keys(updatedStock).forEach(branchId => {
@@ -577,11 +603,28 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
       stock: updatedStock,
       history,
     });
+    audit({
+      domain: 'stock',
+      action: 'item_removed',
+      targetId: vialId,
+      targetLabel: `Vial · ${vialName}`,
+    });
   }
 
   function updateMinQty(vialId, newMin) {
+    const vialName = vials.find(v => v.id === vialId)?.name || vialId;
+    const oldMin = vials.find(v => v.id === vialId)?.minQty;
     const updatedVials = vials.map(v => v.id === vialId ? { ...v, minQty: Number(newMin) || 1 } : v);
     setVialStock({ ...vialStock, vials: updatedVials, stock, history });
+    if (String(oldMin) !== String(Number(newMin) || 1)) {
+      audit({
+        domain: 'stock',
+        action: 'item_updated',
+        targetId: vialId,
+        targetLabel: `Vial · ${vialName}`,
+        changes: [{ field: 'Min quantity', from: String(oldMin ?? '—'), to: String(Number(newMin) || 1) }],
+      });
+    }
   }
 
   // Build PDF and return { doc, filename }
@@ -816,6 +859,10 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
 
   const editingVial = editingRow ? vials.find(v => v.id === editingRow) : null;
 
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'stock' && (a.targetLabel || '').startsWith('Vial ·')).length;
+  }, [allAudits]);
+
   return (
     <>
     {/* Mobile Edit Modal — rendered via portal to escape main's transform */}
@@ -854,6 +901,22 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
           </button>
         </div>
       </div>
+
+      {(isAdmin || isReadOnly) && (
+        <PageTabs
+          tabs={[
+            { id: 'main', label: 'Vial Stock', icon: <Package className="w-4 h-4" /> },
+            { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+          ]}
+          activeTab={pageTab}
+          onTabChange={setPageTab}
+        />
+      )}
+
+      {pageTab === 'logs' ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="stock" compact />
+      ) : (
+      <>
 
       {/* Branch Tabs */}
       <div className={`flex gap-1.5 mb-5 overflow-x-auto pb-1 ${isMobile ? '-mx-4 px-4' : ''}`}>
@@ -1270,6 +1333,8 @@ export default function VialStockReport({ vialStock, setVialStock, userRole, cur
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
     </>

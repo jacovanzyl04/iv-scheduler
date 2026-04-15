@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BRANCHES, DAYS_OF_WEEK } from '../data/initialData';
-import { CalendarOff, CalendarCheck, ChevronLeft, ChevronRight, Star, Info, Users } from 'lucide-react';
+import { CalendarOff, CalendarCheck, ChevronLeft, ChevronRight, Star, Info, Users, History } from 'lucide-react';
 import { useIsMobile } from './Sidebar';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 function formatWeekRange(weekStart) {
   const start = new Date(weekStart);
@@ -39,6 +42,9 @@ export default function AvailabilityManager({
   staffFilter
 }) {
   const isMobile = useIsMobile();
+  const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
   const [activeTab, setActiveTab] = useState('leave');
   const effectiveTab = staffFilter ? 'leave' : activeTab;
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -48,6 +54,7 @@ export default function AvailabilityManager({
   });
 
   const toggleLeave = (staffId, dateStr) => {
+    const wasOff = (availability[staffId] || []).includes(dateStr);
     setAvailability(prev => {
       const current = { ...prev };
       if (!current[staffId]) current[staffId] = [];
@@ -58,9 +65,19 @@ export default function AvailabilityManager({
       }
       return current;
     });
+    const member = staff.find(s => s.id === staffId);
+    audit({
+      domain: 'availability',
+      action: wasOff ? 'leave_removed' : 'leave_added',
+      targetId: staffId,
+      targetLabel: member?.name || staffId,
+      details: [`Date: ${dateStr}`],
+    });
   };
 
   const setShiftRequest = (staffId, day, branchId) => {
+    const prevRequest = shiftRequests[staffId]?.[day];
+    const isClear = prevRequest === branchId;
     setShiftRequests(prev => {
       const current = { ...prev };
       if (!current[staffId]) current[staffId] = {};
@@ -71,7 +88,22 @@ export default function AvailabilityManager({
       }
       return current;
     });
+    const member = staff.find(s => s.id === staffId);
+    const branch = BRANCHES.find(b => b.id === branchId);
+    audit({
+      domain: 'availability',
+      action: isClear ? 'shift_request_cleared' : 'shift_request_set',
+      targetId: staffId,
+      targetLabel: member?.name || staffId,
+      details: isClear
+        ? [`Day: ${day}`, 'Request cleared']
+        : [`Day: ${day}`, `Branch: ${branch?.name || branchId}`],
+    });
   };
+
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'availability').length;
+  }, [allAudits]);
 
   const visibleStaff = staffFilter ? staff.filter(s => s.id === staffFilter) : staff;
   const priorityStaff = visibleStaff.filter(s => s.priority);
@@ -167,21 +199,40 @@ export default function AvailabilityManager({
           <p className="text-d4l-muted text-sm mt-0.5">Mark leave days and shift requests for the week</p>
         </div>
 
-        <div className="flex items-center gap-1 bg-d4l-surface border border-d4l-border rounded-xl px-1 py-1">
-          <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-text2">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button onClick={goToToday} className="px-2 md:px-3 py-1.5 text-xs bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
-            This Week
-          </button>
-          <span className="text-xs font-medium text-d4l-text2 min-w-[130px] md:min-w-[160px] text-center px-1 md:px-2">
-            {formatWeekRange(currentWeekStart)}
-          </span>
-          <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-text2">
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+        {pageTab === 'main' && (
+          <div className="flex items-center gap-1 bg-d4l-surface border border-d4l-border rounded-xl px-1 py-1">
+            <button onClick={goToPrevWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-text2">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={goToToday} className="px-2 md:px-3 py-1.5 text-xs bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
+              This Week
+            </button>
+            <span className="text-xs font-medium text-d4l-text2 min-w-[130px] md:min-w-[160px] text-center px-1 md:px-2">
+              {formatWeekRange(currentWeekStart)}
+            </span>
+            <button onClick={goToNextWeek} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-text2">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
+
+      {!staffFilter && (
+        <PageTabs
+          tabs={[
+            { id: 'main', label: 'Availability', icon: <CalendarOff className="w-4 h-4" /> },
+            { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+          ]}
+          activeTab={pageTab}
+          onTabChange={setPageTab}
+        />
+      )}
+
+      {pageTab === 'logs' && !staffFilter ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="availability" compact />
+      ) : (
+      <>
+
 
       {/* ===== STAT CARDS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -617,6 +668,8 @@ export default function AvailabilityManager({
             </div>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );

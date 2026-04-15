@@ -1,11 +1,13 @@
-import { useState, useCallback, useEffect, Fragment } from 'react';
+import { useState, useCallback, useEffect, useMemo, Fragment } from 'react';
 import { useIsMobile } from './Sidebar';
 import { BRANCHES, DAYS_OF_WEEK, isBranchOpen, getShiftHours, isScheduleRole } from '../data/initialData';
 import { autoSchedule, validateSchedule, calculateWeeklyHours, timesOverlap, timeToMinutes } from '../utils/scheduler';
 import { exportScheduleToExcel } from '../utils/exportExcel';
 import { exportScheduleToPdf } from '../utils/exportPdf';
-import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, Clock, MoreHorizontal, Send } from 'lucide-react';
-import { useAudit } from '../contexts/AuditContext';
+import { ChevronLeft, ChevronRight, Wand2, Download, FileText, AlertTriangle, AlertCircle, X, Plus, Lock, Unlock, Trash2, Clock, MoreHorizontal, Send, History, Calendar } from 'lucide-react';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 // Format "HH:MM" -> short hour display: "9", "13", "17"
 function fmtHour(t) {
@@ -80,6 +82,11 @@ export default function WeeklySchedule({
   onPublish, publishStatus, isPublished,
 }) {
   const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'schedule').length;
+  }, [allAudits]);
   const [assignModal, setAssignModal] = useState(null); // { day, branchId, role }
   const [timePickerModal, setTimePickerModal] = useState(null); // { day, branchId, role, staffMember, slots }
   const [customTimeMode, setCustomTimeMode] = useState(false);
@@ -589,6 +596,22 @@ export default function WeeklySchedule({
 
   return (
     <div className="p-3 md:p-4 lg:p-6">
+      {!readOnly && (
+        <PageTabs
+          tabs={[
+            { id: 'main', label: 'Schedule', icon: <Calendar className="w-4 h-4" /> },
+            { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+          ]}
+          activeTab={pageTab}
+          onTabChange={setPageTab}
+        />
+      )}
+
+      {pageTab === 'logs' && !readOnly ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="schedule" compact />
+      ) : (
+      <>
+
       {/* === TOOLBAR === */}
       <div className="flex flex-col md:flex-row md:flex-wrap md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-5">
         {/* Top row: Title + Actions */}
@@ -1079,6 +1102,8 @@ export default function WeeklySchedule({
             </div>
           )}
         </div>
+      )}
+      </>
       )}
 
       {/* === ASSIGNMENT MODAL === */}

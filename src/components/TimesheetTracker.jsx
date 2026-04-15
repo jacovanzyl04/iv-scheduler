@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck, Upload, Paperclip, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck, Upload, Paperclip, X, Loader2, History } from 'lucide-react';
 import { isScheduleRole } from '../data/initialData';
 import {
   getPayCycleForDate,
@@ -10,7 +10,9 @@ import {
   getNextPayCycle,
 } from '../utils/payCycle';
 import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup } from '../utils/timesheetFiles';
-import { useAudit } from '../contexts/AuditContext';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 const gradients = {
   blue: 'from-blue-500 to-cyan-400',
@@ -51,6 +53,11 @@ function NotesInput({ value, onChange, placeholder, className }) {
 
 export default function TimesheetTracker({ staff, schedules, timesheets, setTimesheets, staffFilter }) {
   const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'timesheets').length;
+  }, [allAudits]);
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
   const [uploadingStaff, setUploadingStaff] = useState(null);
   const [uploadError, setUploadError] = useState(null);
@@ -327,6 +334,22 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         </div>
       </div>
 
+      {!staffFilter && (
+        <PageTabs
+          tabs={[
+            { id: 'main', label: 'Timesheets', icon: <FileCheck className="w-4 h-4" /> },
+            { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+          ]}
+          activeTab={pageTab}
+          onTabChange={setPageTab}
+        />
+      )}
+
+      {pageTab === 'logs' && !staffFilter ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="timesheets" compact />
+      ) : (
+      <>
+
       {/* ===== STAT CARDS ===== */}
       {!staffFilter && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -386,6 +409,8 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
           {renderRoleGroup('Support Staff', support, '#22c55e')}
           </div>
         </div>
+      )}
+      </>
       )}
 
       <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={handleFileSelected} className="hidden" />

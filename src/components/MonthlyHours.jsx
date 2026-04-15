@@ -9,8 +9,10 @@ import {
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
-import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown, Users, BarChart3, Calculator, X, Plus, CalendarPlus, Timer, Zap } from 'lucide-react';
-import { useAudit } from '../contexts/AuditContext';
+import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, ChevronDown, Users, BarChart3, Calculator, X, Plus, CalendarPlus, Timer, Zap, History } from 'lucide-react';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 const gradients = {
   blue: 'from-blue-500 to-cyan-400',
@@ -31,6 +33,11 @@ function formatDateStr(d) {
 
 export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, setPayCycleExtras, payCycleOvertime = {}, setPayCycleOvertime }) {
   const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'pay_cycle').length;
+  }, [allAudits]);
   const [currentCycle, setCurrentCycle] = useState(() => getPayCycleForDate(new Date()));
   const [expandedStaff, setExpandedStaff] = useState(new Set());
   const [activeTab, setActiveTab] = useState('standard'); // 'standard' | 'monthly'
@@ -694,6 +701,20 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
         </div>
       </div>
 
+      <PageTabs
+        tabs={[
+          { id: 'main', label: 'Pay Cycle', icon: <Clock className="w-4 h-4" /> },
+          { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+        ]}
+        activeTab={pageTab}
+        onTabChange={setPageTab}
+      />
+
+      {pageTab === 'logs' ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="pay_cycle" compact />
+      ) : (
+      <>
+
       {/* ===== TAB SWITCHER ===== */}
       {monthlyStaff.length > 0 && (
         <div className="flex gap-1 mb-6 md:mb-8 bg-d4l-bg rounded-lg p-1 w-fit section-animate">
@@ -852,6 +873,8 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

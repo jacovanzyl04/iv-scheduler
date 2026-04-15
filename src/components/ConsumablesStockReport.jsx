@@ -12,6 +12,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
 import { saveAs } from 'file-saver';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 function getStockStatus(quantity, minQty) {
   if (quantity === 0 || quantity === '') return { label: 'Out of Stock', color: 'red' };
@@ -205,6 +208,9 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
   const isAdmin = userRole === 'admin';
   const isReadOnly = userRole === 'hr';
   const isMobile = useIsMobile();
+  const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
   const [selectedBranch, setSelectedBranch] = useState(BRANCHES[0].id);
   const [editingRow, setEditingRow] = useState(null);
   const [editData, setEditData] = useState({});
@@ -308,6 +314,18 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
       }],
     });
 
+    const itemName = items.find(v => v.id === itemId)?.name || itemId;
+    const branchName = BRANCHES.find(b => b.id === selectedBranch)?.name || selectedBranch;
+    const prevQty = branchStock[itemId]?.quantity;
+    const newQty = Number(editData.quantity) || 0;
+    audit({
+      domain: 'stock',
+      action: 'quantity_changed',
+      targetId: itemId,
+      targetLabel: `Consumable · ${itemName} · ${branchName}`,
+      changes: [{ field: 'Quantity', from: prevQty == null ? '—' : String(prevQty), to: String(newQty) }],
+    });
+
     setEditingRow(null);
     setEditData({});
   }
@@ -352,17 +370,23 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
     const id = newItemName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
     if (items.some(v => v.id === id)) return;
 
+    const name = newItemName.trim();
+    const code = newItemCode.trim().toUpperCase() || 'PS000';
+    const unit = newItemUnit || 'pieces';
+    const minQty = Number(newItemMinQty) || 5;
+
     setConsumablesStock({
       ...consumablesStock,
-      items: [...items, {
-        id,
-        name: newItemName.trim(),
-        code: newItemCode.trim().toUpperCase() || 'PS000',
-        unit: newItemUnit || 'pieces',
-        minQty: Number(newItemMinQty) || 5,
-      }],
+      items: [...items, { id, name, code, unit, minQty }],
       stock,
       history,
+    });
+    audit({
+      domain: 'stock',
+      action: 'item_added',
+      targetId: id,
+      targetLabel: `Consumable · ${name}`,
+      details: [`Code: ${code}`, `Unit: ${unit}`, `Min qty: ${minQty}`],
     });
 
     setNewItemName('');
@@ -373,6 +397,7 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
   }
 
   function removeItem(itemId) {
+    const removed = items.find(v => v.id === itemId);
     const updatedItems = items.filter(v => v.id !== itemId);
     const updatedStock = { ...stock };
     Object.keys(updatedStock).forEach(branchId => {
@@ -389,11 +414,29 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
       stock: updatedStock,
       history,
     });
+    if (removed) {
+      audit({
+        domain: 'stock',
+        action: 'item_removed',
+        targetId: itemId,
+        targetLabel: `Consumable · ${removed.name}`,
+      });
+    }
   }
 
   function updateMinQty(itemId, newMin) {
+    const existing = items.find(v => v.id === itemId);
     const updatedItems = items.map(v => v.id === itemId ? { ...v, minQty: Number(newMin) || 1 } : v);
     setConsumablesStock({ ...consumablesStock, items: updatedItems, stock, history });
+    if (existing && String(existing.minQty) !== String(Number(newMin) || 1)) {
+      audit({
+        domain: 'stock',
+        action: 'item_updated',
+        targetId: itemId,
+        targetLabel: `Consumable · ${existing.name}`,
+        changes: [{ field: 'Min quantity', from: String(existing.minQty ?? '—'), to: String(Number(newMin) || 1) }],
+      });
+    }
   }
 
   // PDF Export
@@ -588,6 +631,10 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
   const selectedBranchData = BRANCHES.find(b => b.id === selectedBranch);
   const editingItem = editingRow ? items.find(v => v.id === editingRow) : null;
 
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'stock' && (a.targetLabel || '').startsWith('Consumable ·')).length;
+  }, [allAudits]);
+
   return (
     <>
     {/* Mobile Edit Modal via portal */}
@@ -623,6 +670,22 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
           </button>
         </div>
       </div>
+
+      {(isAdmin || isReadOnly) && (
+        <PageTabs
+          tabs={[
+            { id: 'main', label: 'Stock Take', icon: <ShoppingCart className="w-4 h-4" /> },
+            { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+          ]}
+          activeTab={pageTab}
+          onTabChange={setPageTab}
+        />
+      )}
+
+      {pageTab === 'logs' ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="stock" compact />
+      ) : (
+      <>
 
       {/* Branch Tabs */}
       <div className={`flex gap-1.5 mb-5 overflow-x-auto pb-1 ${isMobile ? '-mx-4 px-4' : ''}`}>
@@ -987,6 +1050,8 @@ export default function ConsumablesStockReport({ consumablesStock, setConsumable
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
     </>

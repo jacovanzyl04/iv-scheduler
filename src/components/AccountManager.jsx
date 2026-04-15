@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword as firebaseSignIn, signOut as firebaseSignOut, deleteUser } from 'firebase/auth';
 import { app, db, ref, set, remove, onValue, auth, sendPasswordResetEmail, updatePassword } from '../utils/firebase';
-import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2, Check, Minus, ChevronDown, ChevronUp } from 'lucide-react';
-import { useAudit } from '../contexts/AuditContext';
+import { UserPlus, Mail, Shield, ShieldCheck, Loader2, RefreshCw, Users, X, Eye, EyeOff, KeyRound, Pencil, Trash2, Check, Minus, ChevronDown, ChevronUp, History, UserCog } from 'lucide-react';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 // Secondary app for creating users without logging out admin
 let secondaryApp = null;
@@ -81,6 +83,8 @@ const ROLE_PERMISSIONS = {
 
 export default function AccountManager({ staff }) {
   const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
   const [users, setUsers] = useState({});
   const [expandedPerms, setExpandedPerms] = useState({});
   const [showCreate, setShowCreate] = useState(false);
@@ -343,6 +347,10 @@ export default function AccountManager({ staff }) {
     </div>
   );
 
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'accounts').length;
+  }, [allAudits]);
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
 
@@ -354,14 +362,30 @@ export default function AccountManager({ staff }) {
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Create and manage staff login accounts</p>
         </div>
-        <button
-          onClick={() => { setShowCreate(true); setError(null); }}
-          className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow"
-        >
-          <UserPlus className="w-4 h-4" />
-          New Account
-        </button>
+        {pageTab === 'main' && (
+          <button
+            onClick={() => { setShowCreate(true); setError(null); }}
+            className="flex items-center gap-2 px-4 py-2 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow"
+          >
+            <UserPlus className="w-4 h-4" />
+            New Account
+          </button>
+        )}
       </div>
+
+      <PageTabs
+        tabs={[
+          { id: 'main', label: 'Accounts', icon: <UserCog className="w-4 h-4" /> },
+          { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+        ]}
+        activeTab={pageTab}
+        onTabChange={setPageTab}
+      />
+
+      {pageTab === 'logs' ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="accounts" compact />
+      ) : (
+      <>
 
       {/* ===== STAT CARDS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -787,6 +811,8 @@ export default function AccountManager({ staff }) {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

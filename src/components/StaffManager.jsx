@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BRANCHES, isScheduleRole } from '../data/initialData';
-import { UserPlus, Edit2, Trash2, X, Star, MapPin, Clock, AlertCircle, Search, Users, Briefcase } from 'lucide-react';
-import { useAudit } from '../contexts/AuditContext';
+import { UserPlus, Edit2, Trash2, X, Star, MapPin, Clock, AlertCircle, Search, Users, Briefcase, History } from 'lucide-react';
+import { useAudit, useAudits } from '../contexts/AuditContext';
+import PageTabs from './PageTabs';
+import AuditLogPanel from './AuditLogPanel';
 
 const STAFF_COLORS = [
   { id: null, label: 'None', hex: null },
@@ -48,11 +50,16 @@ const ROLE_DOT = {
 
 export default function StaffManager({ staff, setStaff, readOnly }) {
   const audit = useAudit();
+  const allAudits = useAudits();
+  const [pageTab, setPageTab] = useState('main');
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const domainAuditsCount = useMemo(() => {
+    return Object.values(allAudits || {}).filter(a => a.domain === 'staff').length;
+  }, [allAudits]);
 
   // Diff two staff records and return [{ field, from, to }, ...] for
   // human-readable fields that changed. Used on updates.
@@ -163,7 +170,7 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
           <h1 className="text-xl md:text-2xl font-bold text-d4l-text">Staff Management</h1>
           <p className="text-d4l-muted text-sm">{staff.length} team members</p>
         </div>
-        {!readOnly && (
+        {!readOnly && pageTab === 'main' && (
           <button
             onClick={startAdd}
             className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-2.5 bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow text-sm"
@@ -174,6 +181,20 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
           </button>
         )}
       </div>
+
+      <PageTabs
+        tabs={[
+          { id: 'main', label: 'Staff', icon: <Users className="w-4 h-4" /> },
+          { id: 'logs', label: 'Logs', icon: <History className="w-4 h-4" />, count: domainAuditsCount },
+        ]}
+        activeTab={pageTab}
+        onTabChange={setPageTab}
+      />
+
+      {pageTab === 'logs' ? (
+        <AuditLogPanel audits={allAudits} fixedDomain="staff" compact />
+      ) : (
+      <>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -364,6 +385,8 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
           <Users className="w-10 h-10 text-d4l-dim/30 mx-auto mb-3" />
           <p className="text-d4l-dim text-sm">No staff members match this filter</p>
         </div>
+      )}
+      </>
       )}
 
       {/* Edit/Add Modal */}

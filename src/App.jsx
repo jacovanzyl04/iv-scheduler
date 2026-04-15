@@ -483,7 +483,7 @@ export default function App() {
   const isHR = userRole === 'hr';
 
   return (
-    <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole}>
+    <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole} audits={audits}>
     <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
       <Sidebar
         activePage={activePage}

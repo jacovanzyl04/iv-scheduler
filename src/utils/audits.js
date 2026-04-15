@@ -18,34 +18,43 @@
 import { saveFirebaseChild } from './storage';
 
 export const AUDIT_DOMAINS = {
-  DOCUMENTS:   'documents',
-  ACCOUNTS:    'accounts',
-  STAFF:       'staff',
-  SCHEDULE:    'schedule',
-  PAY_CYCLE:   'pay_cycle',
-  TIMESHEETS:  'timesheets',
-  SYSTEM:      'system',
+  DOCUMENTS:    'documents',
+  ACCOUNTS:     'accounts',
+  STAFF:        'staff',
+  SCHEDULE:     'schedule',
+  PAY_CYCLE:    'pay_cycle',
+  TIMESHEETS:   'timesheets',
+  AVAILABILITY: 'availability',
+  STOCK:        'stock',
+  TRANSFERS:    'transfers',
+  SYSTEM:       'system',
 };
 
 export const DOMAIN_LABELS = {
-  documents:   'Documents',
-  accounts:    'Accounts',
-  staff:       'Staff',
-  schedule:    'Schedule',
-  pay_cycle:   'Pay Cycle',
-  timesheets:  'Timesheets',
-  system:      'System',
+  documents:    'Documents',
+  accounts:     'Accounts',
+  staff:        'Staff',
+  schedule:     'Schedule',
+  pay_cycle:    'Pay Cycle',
+  timesheets:   'Timesheets',
+  availability: 'Availability',
+  stock:        'Stock',
+  transfers:    'Transfers',
+  system:       'System',
 };
 
 // Tailwind classes for domain chips on the viewer
 export const DOMAIN_STYLES = {
-  documents:   { color: 'text-purple-300', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
-  accounts:    { color: 'text-orange-300', bg: 'bg-orange-500/10', border: 'border-orange-500/30' },
-  staff:       { color: 'text-sky-300',    bg: 'bg-sky-500/10',    border: 'border-sky-500/30' },
-  schedule:    { color: 'text-emerald-300',bg: 'bg-emerald-500/10',border: 'border-emerald-500/30' },
-  pay_cycle:   { color: 'text-amber-300',  bg: 'bg-amber-500/10',  border: 'border-amber-500/30' },
-  timesheets:  { color: 'text-rose-300',   bg: 'bg-rose-500/10',   border: 'border-rose-500/30' },
-  system:      { color: 'text-d4l-muted',  bg: 'bg-d4l-hover/40',  border: 'border-d4l-border' },
+  documents:    { color: 'text-purple-300',   bg: 'bg-purple-500/10',   border: 'border-purple-500/30' },
+  accounts:     { color: 'text-orange-300',   bg: 'bg-orange-500/10',   border: 'border-orange-500/30' },
+  staff:        { color: 'text-sky-300',      bg: 'bg-sky-500/10',      border: 'border-sky-500/30' },
+  schedule:     { color: 'text-emerald-300',  bg: 'bg-emerald-500/10',  border: 'border-emerald-500/30' },
+  pay_cycle:    { color: 'text-amber-300',    bg: 'bg-amber-500/10',    border: 'border-amber-500/30' },
+  timesheets:   { color: 'text-rose-300',     bg: 'bg-rose-500/10',     border: 'border-rose-500/30' },
+  availability: { color: 'text-teal-300',     bg: 'bg-teal-500/10',     border: 'border-teal-500/30' },
+  stock:        { color: 'text-indigo-300',   bg: 'bg-indigo-500/10',   border: 'border-indigo-500/30' },
+  transfers:    { color: 'text-fuchsia-300',  bg: 'bg-fuchsia-500/10',  border: 'border-fuchsia-500/30' },
+  system:       { color: 'text-d4l-muted',    bg: 'bg-d4l-hover/40',    border: 'border-d4l-border' },
 };
 
 // Short action labels per domain (extend as new actions are added)
@@ -81,6 +90,21 @@ export const ACTION_LABELS = {
   'timesheets.status_changed': 'Status changed',
   'timesheets.file_uploaded':  'File uploaded',
   'timesheets.file_removed':   'File removed',
+  // Availability
+  'availability.leave_added':           'Leave added',
+  'availability.leave_removed':         'Leave removed',
+  'availability.shift_request_set':     'Shift request set',
+  'availability.shift_request_cleared': 'Shift request cleared',
+  // Stock (vials + consumables)
+  'stock.item_added':       'Item added',
+  'stock.item_updated':     'Item updated',
+  'stock.item_removed':     'Item removed',
+  'stock.quantity_changed': 'Quantity changed',
+  'stock.batch_added':      'Batch added',
+  'stock.batch_removed':    'Batch removed',
+  // Transfers
+  'transfers.created':   'Transfer created',
+  'transfers.deleted':   'Transfer deleted',
 };
 
 function genId() {
