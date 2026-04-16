@@ -1,40 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  /* Drip4Life Dark Theme — Gold + Black */
-  --color-d4l-bg: #080808;
-  --color-d4l-surface: #111110;
-  --color-d4l-raised: #1a1a16;
-  --color-d4l-hover: #222218;
-  --color-d4l-active: #2a2a22;
-  --color-d4l-text: #f0ece0;
-  --color-d4l-text2: #c8c0a8;
-  --color-d4l-muted: #8a8070;
-  --color-d4l-dim: #5a5040;
-  --color-d4l-gold: #e8e800;
-  --color-d4l-gold-dark: #c8a800;
-  --color-d4l-gold-dim: #8a8000;
-  --color-d4l-border: #1e1e18;
-  --color-d4l-border-light: #16160f;
+  /* Drip4Life Dark Theme — OKLCH with gold-tinted neutrals (hue ~95) */
+  --color-d4l-bg: oklch(0.08 0.006 95);
+  --color-d4l-surface: oklch(0.14 0.008 95);
+  --color-d4l-raised: oklch(0.18 0.01 95);
+  --color-d4l-hover: oklch(0.22 0.012 95);
+  --color-d4l-active: oklch(0.26 0.014 95);
+  --color-d4l-text: oklch(0.93 0.02 95);
+  --color-d4l-text2: oklch(0.78 0.03 95);
+  --color-d4l-muted: oklch(0.56 0.03 95);
+  --color-d4l-dim: oklch(0.40 0.03 95);
+  --color-d4l-gold: oklch(0.88 0.19 100);
+  --color-d4l-gold-dark: oklch(0.76 0.16 95);
+  --color-d4l-gold-dim: oklch(0.56 0.12 95);
+  --color-d4l-border: oklch(0.19 0.008 95);
+  --color-d4l-border-light: oklch(0.15 0.006 95);
 
-  /* Semantic */
-  --color-danger: #ef4444;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
+  /* Semantic — reduced chroma at extremes */
+  --color-danger: oklch(0.63 0.22 25);
+  --color-success: oklch(0.68 0.17 150);
+  --color-warning: oklch(0.75 0.16 75);
 
-  /* Branches — keep vibrant */
-  --color-parkview: #3b82f6;
-  --color-clearwater: #8b5cf6;
-  --color-rosebank: #ec4899;
-  --color-clinic: #f97316;
+  /* Branches — vibrant accent hues */
+  --color-parkview: oklch(0.62 0.18 260);
+  --color-clearwater: oklch(0.55 0.2 290);
+  --color-rosebank: oklch(0.62 0.2 345);
+  --color-clinic: oklch(0.7 0.17 50);
 }
 
 body {
   margin: 0;
-  font-family: 'DM Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Figtree', 'Segoe UI', system-ui, -apple-system, sans-serif;
   background-color: var(--color-d4l-bg);
   color: var(--color-d4l-text);
   min-width: 320px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Dark theme needs extra line-height for readability */
+p, li, td, th, label, span {
+  line-height: 1.65;
+}
+
+/* Cap body text line length */
+.prose-width {
+  max-width: 65ch;
 }
 
 /* === Global Dark Form Styling === */
@@ -74,10 +88,11 @@ input, select, textarea {
   border: 1px solid rgba(232, 232, 0, 0.25);
 }
 
-.branch-parkview { border-left: 4px solid var(--color-parkview); }
-.branch-clearwater { border-left: 4px solid var(--color-clearwater); }
-.branch-rosebank { border-left: 4px solid var(--color-rosebank); }
-.branch-clinic { border-left: 4px solid var(--color-clinic); }
+/* Branch indicators — background tint (not border-left stripes) */
+.branch-parkview { background-color: rgba(59, 130, 246, 0.06); }
+.branch-clearwater { background-color: rgba(139, 92, 246, 0.06); }
+.branch-rosebank { background-color: rgba(236, 72, 153, 0.06); }
+.branch-clinic { background-color: rgba(249, 115, 22, 0.06); }
 
 /* ===== Global Animation System ===== */
 
@@ -135,7 +150,7 @@ html { scroll-behavior: smooth; }
 }
 
 .stat-animate {
-  animation: statEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: statEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .stat-animate:nth-child(1) { animation-delay: 0.05s; }
@@ -205,19 +220,15 @@ html { scroll-behavior: smooth; }
   box-shadow: none;
 }
 
-/* Shimmer effect for headers / gold text */
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+/* Subtle gold pulse for headings */
+.text-shimmer {
+  color: #e8e800;
+  animation: shimmerPulse 6s ease-in-out infinite;
 }
 
-.text-shimmer {
-  background: linear-gradient(90deg, #e8e800 0%, #fff8a0 25%, #e8e800 50%, #c8a800 75%, #e8e800 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 6s linear infinite;
+@keyframes shimmerPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
 }
 
 /* Pulse dot (for live indicators) */
@@ -293,7 +304,7 @@ html { scroll-behavior: smooth; }
 /* ===== Sidebar — Modern Glassmorphism ===== */
 
 .sidebar-root {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
 }
 
 .sidebar-glass {
@@ -316,21 +327,12 @@ html { scroll-behavior: smooth; }
   justify-content: center;
   background: rgba(232, 232, 0, 0.06);
   border: 1px solid rgba(232, 232, 0, 0.12);
-  animation: sidebarLogoPulse 4s ease-in-out infinite;
   flex-shrink: 0;
 }
 
-@keyframes sidebarLogoPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 232, 0, 0); }
-  50% { box-shadow: 0 0 12px 2px rgba(232, 232, 0, 0.08); }
-}
-
-/* Brand text gradient */
+/* Brand text — solid gold */
 .sidebar-brand-text {
-  background: linear-gradient(135deg, #e8e800 10%, #d4c400 90%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #e8e800;
 }
 
 /* Toggle button */
@@ -368,7 +370,7 @@ html { scroll-behavior: smooth; }
   border: none;
   background: transparent;
   overflow: hidden;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
 }
 
 .sidebar-nav-item:hover {
@@ -454,7 +456,7 @@ html { scroll-behavior: smooth; }
   background: transparent;
   color: #5a5040;
   font-size: 0.8125rem;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -484,7 +486,7 @@ html { scroll-behavior: smooth; }
   min-height: 100vh;
   display: flex;
   background: #080808;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
 }
 
 /* --- Left Visual Panel --- */
@@ -623,10 +625,7 @@ html { scroll-behavior: smooth; }
   font-weight: 400;
   font-size: 4rem;
   letter-spacing: 0.18em;
-  background: linear-gradient(135deg, #e8e800 20%, #c8a800 80%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #e8e800;
   margin: 0;
   line-height: 1;
 }
@@ -739,7 +738,7 @@ html { scroll-behavior: smooth; }
   border-radius: 12px;
   color: #f0ece0;
   font-size: 0.95rem;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
   transition: all 0.3s ease;
   box-sizing: border-box;
 }
@@ -791,7 +790,7 @@ html { scroll-behavior: smooth; }
   margin-top: 10px;
   background: linear-gradient(135deg, #e8e800 0%, #c8a800 100%);
   color: #0a0a0a;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
   font-weight: 600;
   font-size: 0.95rem;
   letter-spacing: 0.03em;
@@ -948,7 +947,7 @@ html { scroll-behavior: smooth; }
   border: none;
   cursor: pointer;
   position: relative;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
   color: #5a5040;
   transition: color 0.2s ease;
   -webkit-tap-highlight-color: transparent;
@@ -1021,7 +1020,7 @@ html { scroll-behavior: smooth; }
   background: transparent;
   border: none;
   color: #c8c0a8;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Figtree', sans-serif;
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -1074,4 +1073,74 @@ html { scroll-behavior: smooth; }
     padding-top: 52px;
     padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* ===== Reduced Motion — respect user preferences ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+
+  .btn-glow:hover {
+    transform: none;
+  }
+
+  .pulse-dot {
+    animation: none !important;
+    opacity: 1;
+  }
+
+  .coverage-dot:hover {
+    transform: none;
+  }
+}
+
+/* ===== Focus-visible — keyboard accessibility ===== */
+:focus-visible {
+  outline: 2px solid rgba(232, 232, 0, 0.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove outline for mouse/touch clicks */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Custom focus ring for buttons and interactive elements */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(232, 232, 0, 0.5);
+  outline-offset: 2px;
+}
+
+/* Sidebar nav items — gold ring on focus */
+.sidebar-nav-item:focus-visible {
+  outline: 2px solid rgba(232, 232, 0, 0.4);
+  outline-offset: -2px;
+}
+
+/* Mobile tabs */
+.mobile-tab:focus-visible {
+  outline: 2px solid rgba(232, 232, 0, 0.4);
+  outline-offset: -2px;
+}
+
+/* ===== Selection color ===== */
+::selection {
+  background: rgba(232, 232, 0, 0.25);
+  color: #f0ece0;
 }

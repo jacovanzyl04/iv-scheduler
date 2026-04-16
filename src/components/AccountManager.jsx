@@ -32,18 +32,7 @@ function getSecondaryAuth() {
   return secondaryAuth;
 }
 
-const gradients = {
-  blue: 'from-blue-500 to-cyan-400',
-  purple: 'from-purple-500 to-violet-400',
-  green: 'from-green-500 to-emerald-400',
-  amber: 'from-amber-500 to-yellow-400',
-};
-const glows = {
-  blue: 'rgba(59,130,246,0.07)',
-  purple: 'rgba(139,92,246,0.07)',
-  green: 'rgba(34,197,94,0.07)',
-  amber: 'rgba(245,158,11,0.07)',
-};
+
 
 // Permission definitions now live in src/utils/permissions.js so the
 // Sidebar and App.jsx route guards can enforce them too.
@@ -347,11 +336,8 @@ export default function AccountManager({ staff }) {
   };
 
   const StatCard = ({ color, icon: Icon, label, value, sub }) => (
-    <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-      <div className={`h-[2px] bg-gradient-to-r ${gradients[color]}`} />
-      <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-        style={{ background: `radial-gradient(circle at top right, ${glows[color]}, transparent 70%)` }} />
-      <div className="p-5 relative">
+    <div className="stat-animate hover-lift panel-glow bg-d4l-surface rounded-xl border border-d4l-border">
+      <div className="p-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>

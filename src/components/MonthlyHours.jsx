@@ -14,19 +14,6 @@ import { useAudit, useAudits } from '../contexts/AuditContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
 
-const gradients = {
-  blue: 'from-blue-500 to-cyan-400',
-  purple: 'from-purple-500 to-violet-400',
-  green: 'from-green-500 to-emerald-400',
-  amber: 'from-amber-500 to-yellow-400',
-};
-const glows = {
-  blue: 'rgba(59,130,246,0.07)',
-  purple: 'rgba(139,92,246,0.07)',
-  green: 'rgba(34,197,94,0.07)',
-  amber: 'rgba(245,158,11,0.07)',
-};
-
 function formatDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -751,11 +738,8 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
           { color: 'green', icon: Users, label: 'Staff Count', value: `${staffCount}`, sub: 'scheduled this cycle' },
           { color: 'amber', icon: Calculator, label: 'Avg Hours', value: `${avgHours}`, sub: 'per staff member' },
         ].map(({ color, icon: Icon, label, value, sub }) => (
-          <div key={label} className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-            <div className={`h-[2px] bg-gradient-to-r ${gradients[color]}`} />
-            <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-              style={{ background: `radial-gradient(circle at top right, ${glows[color]}, transparent 70%)` }} />
-            <div className="p-5 relative">
+          <div key={label} className="stat-animate hover-lift panel-glow bg-d4l-surface rounded-xl border border-d4l-border">
+            <div className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>
@@ -788,11 +772,8 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
               const isOver = progress !== null && progress > 100;
               const isUnder = progress !== null && progress < 80;
               return (
-                <div key={member.id} className="card-animate relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border hover-lift panel-glow">
-                  <div className={`h-[2px] bg-gradient-to-r ${info?.role === 'nurse' ? 'from-blue-500 to-cyan-400' : 'from-pink-500 to-rose-400'}`} />
-                  <div className="absolute top-0 right-0 w-28 h-28 pointer-events-none opacity-30"
-                    style={{ background: `radial-gradient(circle at top right, ${info?.role === 'nurse' ? 'rgba(59,130,246,0.08)' : 'rgba(236,72,153,0.08)'}, transparent 70%)` }} />
-                  <div className="p-4 relative">
+                <div key={member.id} className="card-animate bg-d4l-surface rounded-xl border border-d4l-border hover-lift panel-glow">
+                  <div className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <h3 className="font-semibold text-d4l-text text-sm">{member.name}</h3>
@@ -844,7 +825,8 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
           {/* Permanent group */}
           {tabPermanent.length > 0 && (
             <>
-              <div className="px-4 py-2 border-l-[3px] border-l-green-500" style={{ background: 'rgba(34,197,94,0.04)' }}>
+              <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'rgba(34,197,94,0.04)' }}>
+                <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
                 <span className="text-xs font-semibold text-green-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   Permanent Staff
                 </span>
@@ -856,7 +838,8 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
           {/* Part-time group */}
           {tabOther.length > 0 && (
             <>
-              <div className="px-4 py-2 border-l-[3px] border-l-d4l-muted" style={{ background: 'rgba(138,128,112,0.04)' }}>
+              <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'rgba(138,128,112,0.04)' }}>
+                <div className="w-2 h-2 rounded-full bg-d4l-muted shrink-0" />
                 <span className="text-xs font-semibold text-d4l-text2 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   Part-time & Locum Staff
                 </span>

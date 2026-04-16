@@ -98,22 +98,6 @@ export default function Dashboard({
   const covColor = coveragePercent === 100 ? 'green' : coveragePercent > 80 ? 'amber' : 'red';
   const issColor = errors.length > 0 ? 'red' : warnings.length > 0 ? 'amber' : 'green';
 
-  const gradients = {
-    green: 'from-green-500 to-emerald-400',
-    amber: 'from-amber-500 to-yellow-400',
-    red: 'from-red-500 to-rose-400',
-    blue: 'from-blue-500 to-cyan-400',
-    purple: 'from-purple-500 to-violet-400',
-  };
-
-  const glows = {
-    green: 'rgba(34,197,94,0.07)',
-    amber: 'rgba(245,158,11,0.07)',
-    red: 'rgba(239,68,68,0.07)',
-    blue: 'rgba(59,130,246,0.07)',
-    purple: 'rgba(139,92,246,0.07)',
-  };
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
 
@@ -123,7 +107,7 @@ export default function Dashboard({
           <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
             {greeting}
           </h1>
-          <p className="text-d4l-muted text-xs md:text-sm mt-0.5">
+          <p className="text-d4l-muted text-xs md:text-sm mt-0.5 leading-relaxed">
             {now.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
@@ -164,95 +148,47 @@ export default function Dashboard({
         />
       )}
 
-      {/* ===== SECTION 2: PREMIUM STAT CARDS ===== */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-        {/* Coverage */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-          <div className={`h-[2px] bg-gradient-to-r ${gradients[covColor]}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${glows[covColor]}, transparent 70%)` }} />
-          <div className="p-5 relative">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Coverage</p>
-                <p className={`text-4xl font-bold tracking-wide count-animate mt-1 ${covColor === 'green' ? 'text-green-400' : covColor === 'amber' ? 'text-amber-400' : 'text-red-400'}`}
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  {coveragePercent}<span className="text-xl">%</span>
-                </p>
-              </div>
-              <div className={`p-3 rounded-xl ${covColor === 'green' ? 'bg-green-500/10' : covColor === 'amber' ? 'bg-amber-500/10' : 'bg-red-500/10'}`}>
-                <CheckCircle2 className={`w-6 h-6 ${covColor === 'green' ? 'text-green-400' : covColor === 'amber' ? 'text-amber-400' : 'text-red-400'}`} />
-              </div>
+      {/* ===== SECTION 2: METRICS STRIP ===== */}
+      <div className="stat-animate bg-d4l-surface rounded-xl border border-d4l-border mb-6 md:mb-8 overflow-hidden">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-d4l-border">
+          {/* Coverage */}
+          <div className="p-4 md:px-5 md:py-4">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className={`text-xl font-bold tabular-nums ${covColor === 'green' ? 'text-green-400' : covColor === 'amber' ? 'text-amber-400' : 'text-red-400'}`}>
+                {coveragePercent}%
+              </span>
+              <span className="text-[11px] text-d4l-muted font-medium">coverage</span>
             </div>
-            <p className="text-[11px] text-d4l-dim mt-2">{coveredSlots} of {totalSlots} slots filled</p>
+            <p className="text-[11px] text-d4l-dim leading-relaxed">{coveredSlots}/{totalSlots} slots filled</p>
           </div>
-        </div>
 
-        {/* Active Staff */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-          <div className={`h-[2px] bg-gradient-to-r ${gradients.blue}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${glows.blue}, transparent 70%)` }} />
-          <div className="p-5 relative">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Active Staff</p>
-                <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  {activeStaffIds.size}
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-blue-500/10">
-                <Users className="w-6 h-6 text-blue-400" />
-              </div>
+          {/* Active Staff */}
+          <div className="p-4 md:px-5 md:py-4">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className="text-xl font-bold text-d4l-text tabular-nums">{activeStaffIds.size}</span>
+              <span className="text-[11px] text-d4l-muted font-medium">staff active</span>
             </div>
-            <p className="text-[11px] text-d4l-dim mt-2">across {BRANCHES.length} branches</p>
+            <p className="text-[11px] text-d4l-dim leading-relaxed">across {BRANCHES.length} branches</p>
           </div>
-        </div>
 
-        {/* Total Shifts */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-          <div className={`h-[2px] bg-gradient-to-r ${gradients.purple}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${glows.purple}, transparent 70%)` }} />
-          <div className="p-5 relative">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Total Shifts</p>
-                <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  {totalShifts}
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-purple-500/10">
-                <Clock className="w-6 h-6 text-purple-400" />
-              </div>
+          {/* Total Shifts */}
+          <div className="p-4 md:px-5 md:py-4 border-t md:border-t-0 border-d4l-border">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className="text-xl font-bold text-d4l-text tabular-nums">{totalShifts}</span>
+              <span className="text-[11px] text-d4l-muted font-medium">shifts</span>
             </div>
-            <p className="text-[11px] text-d4l-dim mt-2">this week</p>
+            <p className="text-[11px] text-d4l-dim leading-relaxed">this week</p>
           </div>
-        </div>
 
-        {/* Issues */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-          <div className={`h-[2px] bg-gradient-to-r ${gradients[issColor]}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${glows[issColor]}, transparent 70%)` }} />
-          <div className="p-5 relative">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Issues</p>
-                <p className={`text-4xl font-bold tracking-wide count-animate mt-1 ${issColor === 'green' ? 'text-green-400' : issColor === 'amber' ? 'text-amber-400' : 'text-red-400'}`}
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-                  {totalIssues}
-                </p>
-              </div>
-              <div className={`p-3 rounded-xl ${issColor === 'green' ? 'bg-green-500/10' : issColor === 'amber' ? 'bg-amber-500/10' : 'bg-red-500/10'}`}>
-                {totalIssues === 0
-                  ? <CheckCircle2 className="w-6 h-6 text-green-400" />
-                  : <AlertTriangle className={`w-6 h-6 ${errors.length > 0 ? 'text-red-400' : 'text-amber-400'}`} />}
-              </div>
+          {/* Issues */}
+          <div className="p-4 md:px-5 md:py-4 border-t md:border-t-0 border-d4l-border">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className={`text-xl font-bold tabular-nums ${issColor === 'green' ? 'text-green-400' : issColor === 'amber' ? 'text-amber-400' : 'text-red-400'}`}>
+                {totalIssues}
+              </span>
+              <span className="text-[11px] text-d4l-muted font-medium">{totalIssues === 1 ? 'issue' : 'issues'}</span>
             </div>
-            <p className="text-[11px] text-d4l-dim mt-2">
+            <p className="text-[11px] text-d4l-dim leading-relaxed">
               {errors.length > 0
                 ? `${errors.length} error${errors.length > 1 ? 's' : ''}, ${warnings.length} warning${warnings.length > 1 ? 's' : ''}`
                 : warnings.length > 0
@@ -285,13 +221,10 @@ export default function Dashboard({
                 className={`card-animate relative overflow-hidden rounded-xl border bg-d4l-surface hover-lift panel-glow ${!open ? 'opacity-40' : ''}`}
                 style={{ borderColor: open ? `${branch.color}20` : undefined }}
               >
-                {/* Colored top strip */}
-                <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${branch.color}, ${branch.color}66)` }} />
-
                 <div className="p-4">
                   {/* Branch header */}
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: branch.color }} />
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: branch.color }} />
                     <span className="text-sm font-semibold text-d4l-text">{branch.name}</span>
                     {!open && (
                       <span className="ml-auto text-[10px] text-d4l-dim bg-d4l-raised px-2 py-0.5 rounded-full">Closed</span>
@@ -388,9 +321,8 @@ export default function Dashboard({
               style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}
             >
               {/* Branch name */}
-              <div className="p-3 flex items-center gap-2.5 border-l-[3px]"
-                style={{ borderLeftColor: branch.color }}>
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: branch.color }} />
+              <div className="p-3 flex items-center gap-2.5">
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: branch.color }} />
                 <span className="text-sm font-medium text-d4l-text">{branch.name}</span>
               </div>
 

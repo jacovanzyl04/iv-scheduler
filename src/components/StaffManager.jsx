@@ -39,11 +39,11 @@ const EMPTY_STAFF = {
   certifications: [],
 };
 
-const ROLE_BORDER = {
-  nurse: 'border-l-blue-500',
-  receptionist: 'border-l-pink-500',
-  cleaner: 'border-l-green-500',
-  hr: 'border-l-teal-500',
+const ROLE_TINT = {
+  nurse: 'bg-blue-500/[0.04]',
+  receptionist: 'bg-pink-500/[0.04]',
+  cleaner: 'bg-green-500/[0.04]',
+  hr: 'bg-teal-500/[0.04]',
 };
 
 const ROLE_DOT = {
@@ -287,7 +287,7 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
           return (
             <div
               key={member.id}
-              className={`card-animate bg-d4l-surface rounded-xl border border-d4l-border border-l-[3px] ${ROLE_BORDER[member.role] || 'border-l-d4l-border'} group hover-lift panel-glow transition-all`}
+              className={`card-animate bg-d4l-surface rounded-xl border border-d4l-border ${ROLE_TINT[member.role] || ''} group hover-lift panel-glow transition-all`}
             >
               {/* Card header */}
               <div className="px-4 pt-4 pb-3 flex items-start justify-between">

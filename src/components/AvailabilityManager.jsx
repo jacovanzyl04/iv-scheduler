@@ -124,21 +124,7 @@ export default function AvailabilityManager({
   const nurseLeaveCount = countLeave(nurses);
   const receptionistLeaveCount = countLeave(receptionists);
 
-  const gradients = {
-    green: 'from-green-500 to-emerald-400',
-    amber: 'from-amber-500 to-yellow-400',
-    red: 'from-red-500 to-rose-400',
-    blue: 'from-blue-500 to-cyan-400',
-    purple: 'from-purple-500 to-violet-400',
-  };
 
-  const glows = {
-    green: 'rgba(34,197,94,0.07)',
-    amber: 'rgba(245,158,11,0.07)',
-    red: 'rgba(239,68,68,0.07)',
-    blue: 'rgba(59,130,246,0.07)',
-    purple: 'rgba(139,92,246,0.07)',
-  };
 
   const renderStaffRow = (member) => (
     <div key={member.id} className="contents group">
@@ -237,11 +223,8 @@ export default function AvailabilityManager({
       {/* ===== STAT CARDS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {/* Total Staff */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-          <div className={`h-[2px] bg-gradient-to-r ${gradients.blue}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${glows.blue}, transparent 70%)` }} />
-          <div className="p-5 relative">
+        <div className="stat-animate hover-lift panel-glow bg-d4l-surface rounded-xl border border-d4l-border">
+          <div className="p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Total Staff</p>
@@ -259,11 +242,8 @@ export default function AvailabilityManager({
         </div>
 
         {/* Nurse Leave Days */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border" style={{ animationDelay: '0.05s' }}>
-          <div className={`h-[2px] bg-gradient-to-r ${nurseLeaveCount > 0 ? gradients.red : gradients.green}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${nurseLeaveCount > 0 ? glows.red : glows.green}, transparent 70%)` }} />
-          <div className="p-5 relative">
+        <div className="stat-animate hover-lift panel-glow bg-d4l-surface rounded-xl border border-d4l-border" style={{ animationDelay: '0.05s' }}>
+          <div className="p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Nurse Leave Days</p>
@@ -281,11 +261,8 @@ export default function AvailabilityManager({
         </div>
 
         {/* Receptionist Leave Days */}
-        <div className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border" style={{ animationDelay: '0.10s' }}>
-          <div className={`h-[2px] bg-gradient-to-r ${receptionistLeaveCount > 0 ? gradients.amber : gradients.green}`} />
-          <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-            style={{ background: `radial-gradient(circle at top right, ${receptionistLeaveCount > 0 ? glows.amber : glows.green}, transparent 70%)` }} />
-          <div className="p-5 relative">
+        <div className="stat-animate hover-lift panel-glow bg-d4l-surface rounded-xl border border-d4l-border" style={{ animationDelay: '0.10s' }}>
+          <div className="p-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Receptionist Leave</p>
@@ -371,7 +348,7 @@ export default function AvailabilityManager({
               </div>
 
               {/* Nurses */}
-              <div className="px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-blue-500 flex items-center gap-2">
+              <div className="px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 flex items-center gap-2">
                 <span className="text-xs font-bold text-blue-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   Nurses
                 </span>
@@ -407,7 +384,7 @@ export default function AvailabilityManager({
               })}
 
               {/* Receptionists */}
-              <div className="px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-pink-500 flex items-center gap-2">
+              <div className="px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 flex items-center gap-2">
                 <span className="text-xs font-bold text-pink-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                   Receptionists
                 </span>
@@ -471,7 +448,7 @@ export default function AvailabilityManager({
                 })}
 
                 {/* Nurses section header */}
-                <div className="col-span-8 px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-blue-500 flex items-center gap-2">
+                <div className="col-span-8 px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 flex items-center gap-2">
                   <span className="text-xs font-bold text-blue-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                     Nurses
                   </span>
@@ -481,7 +458,7 @@ export default function AvailabilityManager({
                 {nurses.map(member => renderStaffRow(member))}
 
                 {/* Receptionists section header */}
-                <div className="col-span-8 px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 border-l-[3px] border-l-pink-500 flex items-center gap-2">
+                <div className="col-span-8 px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 flex items-center gap-2">
                   <span className="text-xs font-bold text-pink-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
                     Receptionists
                   </span>

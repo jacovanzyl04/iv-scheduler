@@ -15,19 +15,6 @@ import { useCan } from '../contexts/PermissionsContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
 
-const gradients = {
-  blue: 'from-blue-500 to-cyan-400',
-  green: 'from-green-500 to-emerald-400',
-  red: 'from-red-500 to-rose-400',
-  amber: 'from-amber-500 to-yellow-400',
-};
-const glows = {
-  blue: 'rgba(59,130,246,0.07)',
-  green: 'rgba(34,197,94,0.07)',
-  red: 'rgba(239,68,68,0.07)',
-  amber: 'rgba(245,158,11,0.07)',
-};
-
 function NotesInput({ value, onChange, placeholder, className }) {
   const [localValue, setLocalValue] = useState(value || '');
   const [focused, setFocused] = useState(false);
@@ -307,7 +294,8 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
     if (entries.length === 0) return null;
     return (
       <>
-        <div className={`px-4 py-2 border-l-[3px] min-w-[600px]`} style={{ borderLeftColor: color, background: `${color}08` }}>
+        <div className="px-4 py-2 min-w-[600px] flex items-center gap-2" style={{ background: `${color}08` }}>
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color, fontFamily: "'Bebas Neue', sans-serif" }}>
             {label}
           </span>
@@ -369,11 +357,8 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
             { color: 'red', icon: Clock, label: 'Pending', value: pendingCount, sub: 'awaiting submission', textColor: 'text-red-400' },
             { color: 'amber', icon: Paperclip, label: 'Files Uploaded', value: filesUploadedCount, sub: 'timesheets attached', textColor: 'text-d4l-gold' },
           ].map(({ color, icon: Icon, label, value, sub, textColor }) => (
-            <div key={label} className="stat-animate hover-lift panel-glow relative overflow-hidden bg-d4l-surface rounded-xl border border-d4l-border">
-              <div className={`h-[2px] bg-gradient-to-r ${gradients[color]}`} />
-              <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-40"
-                style={{ background: `radial-gradient(circle at top right, ${glows[color]}, transparent 70%)` }} />
-              <div className="p-5 relative">
+            <div key={label} className="stat-animate hover-lift panel-glow bg-d4l-surface rounded-xl border border-d4l-border">
+              <div className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>
