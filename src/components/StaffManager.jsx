@@ -4,6 +4,7 @@ import { UserPlus, Edit2, Trash2, X, Star, MapPin, Clock, AlertCircle, Search, U
 import { useAudit, useAudits } from '../contexts/AuditContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
+import EmptyState from './EmptyState';
 import {
   getCertStatus, CERT_STATUS_STYLES, COMMON_CERT_TYPES, formatExpiryRelative,
   summarizeCerts, genCertId,
@@ -413,10 +414,11 @@ export default function StaffManager({ staff, setStaff, readOnly }) {
       </div>
 
       {filteredStaff.length === 0 && (
-        <div className="text-center py-16">
-          <Users className="w-10 h-10 text-d4l-dim/30 mx-auto mb-3" />
-          <p className="text-d4l-dim text-sm">No staff members match this filter</p>
-        </div>
+        <EmptyState
+          icon={<Users className="w-8 h-8" />}
+          title="No staff members found"
+          hint="Try adjusting your search or filter criteria"
+        />
       )}
       </>
       )}

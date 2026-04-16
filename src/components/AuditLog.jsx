@@ -9,7 +9,7 @@ export default function AuditLog({ audits }) {
     <div className="p-4 md:p-6 max-w-[1800px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 section-animate">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text font-display">
             Audit Log
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">

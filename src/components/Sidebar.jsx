@@ -153,7 +153,7 @@ export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, 
         </header>
 
         {/* Mobile bottom tab bar */}
-        <nav className="mobile-bottom-bar">
+        <nav className="mobile-bottom-bar" aria-label="Main navigation">
           {bottomTabs.map(item => {
             const Icon = item.icon;
             const active = activePage === item.id;
@@ -265,7 +265,7 @@ export default function Sidebar({ activePage, setActivePage, isOpen, setIsOpen, 
         <div className="mx-3 mb-2" style={{ height: 1, background: 'linear-gradient(90deg, rgba(232,232,0,0.15) 0%, rgba(232,232,0,0.03) 100%)' }} />
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-1 overflow-y-auto sidebar-nav">
+        <nav className="flex-1 px-2 py-1 overflow-y-auto sidebar-nav" aria-label="Main navigation">
           {navItems.map((item, index) => {
             const Icon = item.icon;
             const active = activePage === item.id;

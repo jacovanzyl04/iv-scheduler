@@ -9,6 +9,7 @@ import {
   FileSpreadsheet, FileText, X, Search, Package, ShoppingCart,
   Check, Filter, Truck, Trash2
 } from 'lucide-react';
+import EmptyState from './EmptyState';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
@@ -1025,11 +1026,11 @@ export default function BranchTransfers({
 
       {/* Transfer list */}
       {filteredTransfers.length === 0 ? (
-        <div className="text-center py-16 bg-d4l-surface border border-d4l-border rounded-xl">
-          <ArrowRightLeft className="w-12 h-12 text-d4l-dim mx-auto mb-3" />
-          <p className="text-d4l-muted text-sm">No transfers recorded yet</p>
-          <p className="text-d4l-dim text-xs mt-1">Click "New Transfer" to log a stock transfer between branches</p>
-        </div>
+        <EmptyState
+          icon={<ArrowRightLeft className="w-8 h-8" />}
+          title="No transfers recorded yet"
+          hint="Click 'New Transfer' to log a stock transfer between branches"
+        />
       ) : isMobile ? (
         /* Mobile: card layout */
         <div className="space-y-2">

@@ -179,7 +179,7 @@ export default function AvailabilityManager({
       {/* ===== HEADER ===== */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 section-animate">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text font-display">
             {staffFilter ? 'My Availability' : 'Availability & Requests'}
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Mark leave days and shift requests for the week</p>
@@ -228,8 +228,7 @@ export default function AvailabilityManager({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Total Staff</p>
-                <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text"
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text font-display">
                   {visibleStaff.length}
                 </p>
               </div>
@@ -247,8 +246,7 @@ export default function AvailabilityManager({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Nurse Leave Days</p>
-                <p className={`text-4xl font-bold tracking-wide count-animate mt-1 ${nurseLeaveCount > 0 ? 'text-red-400' : 'text-green-400'}`}
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <p className={`text-4xl font-bold tracking-wide count-animate mt-1 font-display ${nurseLeaveCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
                   {nurseLeaveCount}
                 </p>
               </div>
@@ -266,8 +264,7 @@ export default function AvailabilityManager({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">Receptionist Leave</p>
-                <p className={`text-4xl font-bold tracking-wide count-animate mt-1 ${receptionistLeaveCount > 0 ? 'text-amber-400' : 'text-green-400'}`}
-                  style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <p className={`text-4xl font-bold tracking-wide count-animate mt-1 font-display ${receptionistLeaveCount > 0 ? 'text-amber-400' : 'text-green-400'}`}>
                   {receptionistLeaveCount}
                 </p>
               </div>
@@ -349,7 +346,7 @@ export default function AvailabilityManager({
 
               {/* Nurses */}
               <div className="px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 flex items-center gap-2">
-                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider font-display">
                   Nurses
                 </span>
                 <span className="text-[10px] text-blue-400/60">({nurses.length})</span>
@@ -385,7 +382,7 @@ export default function AvailabilityManager({
 
               {/* Receptionists */}
               <div className="px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 flex items-center gap-2">
-                <span className="text-xs font-bold text-pink-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <span className="text-xs font-bold text-pink-400 uppercase tracking-wider font-display">
                   Receptionists
                 </span>
                 <span className="text-[10px] text-pink-400/60">({receptionists.length})</span>
@@ -449,7 +446,7 @@ export default function AvailabilityManager({
 
                 {/* Nurses section header */}
                 <div className="col-span-8 px-3 py-2 bg-blue-500/5 border-b border-d4l-border/50 flex items-center gap-2">
-                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  <span className="text-xs font-bold text-blue-400 uppercase tracking-wider font-display">
                     Nurses
                   </span>
                   <span className="text-[10px] text-blue-400/60">({nurses.length})</span>
@@ -459,7 +456,7 @@ export default function AvailabilityManager({
 
                 {/* Receptionists section header */}
                 <div className="col-span-8 px-3 py-2 bg-pink-500/5 border-b border-d4l-border/50 flex items-center gap-2">
-                  <span className="text-xs font-bold text-pink-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  <span className="text-xs font-bold text-pink-400 uppercase tracking-wider font-display">
                     Receptionists
                   </span>
                   <span className="text-[10px] text-pink-400/60">({receptionists.length})</span>

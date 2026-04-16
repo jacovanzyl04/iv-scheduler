@@ -341,7 +341,7 @@ export default function AccountManager({ staff }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>
-            <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+            <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text font-display">
               {value}
             </p>
           </div>
@@ -364,7 +364,7 @@ export default function AccountManager({ staff }) {
       {/* ===== HEADER ===== */}
       <div className="flex items-center justify-between mb-8 section-animate">
         <div>
-          <h1 className="text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-3xl font-bold tracking-wide text-d4l-text font-display">
             Manage Accounts
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Create and manage staff login accounts</p>
@@ -702,7 +702,7 @@ export default function AccountManager({ staff }) {
 
       {/* ===== ACCOUNTS SECTION ===== */}
       <div className="section-animate section-animate-delay-1">
-        <h2 className="text-lg font-semibold text-d4l-text mb-4 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+        <h2 className="text-lg font-semibold text-d4l-text mb-4 uppercase tracking-wider font-display">
           Accounts
         </h2>
 

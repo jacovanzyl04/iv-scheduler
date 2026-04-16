@@ -22,6 +22,7 @@ import { AuditProvider } from './contexts/AuditContext';
 import { PermissionsProvider } from './contexts/PermissionsContext';
 import { logAudit } from './utils/audits';
 import { hasAccessToPage } from './utils/permissions';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Loader2 } from 'lucide-react';
 
 function getMonday(d) {
@@ -537,10 +538,23 @@ export default function App() {
   // Loading state
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-d4l-bg flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-d4l-gold animate-spin mx-auto mb-3" />
-          <p className="text-d4l-muted text-sm">Loading...</p>
+      <div className="min-h-screen bg-d4l-bg flex">
+        {/* Skeleton sidebar (desktop) */}
+        <div className="hidden md:block w-64 bg-d4l-surface border-r border-d4l-border p-4">
+          <div className="skeleton w-8 h-8 rounded-lg mb-6" />
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="skeleton h-9 rounded-lg mb-2" style={{ animationDelay: `${i * 0.1}s` }} />
+          ))}
+        </div>
+        {/* Skeleton main content */}
+        <div className="flex-1 p-6">
+          <div className="skeleton h-8 w-48 mb-6 rounded-lg" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="skeleton h-20 rounded-xl" style={{ animationDelay: `${i * 0.08}s` }} />
+            ))}
+          </div>
+          <div className="skeleton h-64 rounded-xl" />
         </div>
       </div>
     );
@@ -576,6 +590,7 @@ export default function App() {
     <PermissionsProvider role={userRole} permissions={userPermissions}>
     <AuditProvider currentUser={currentUser} staffName={currentStaffName} userRole={userRole} audits={audits}>
     <div className={`flex h-screen bg-d4l-bg ${isMobile ? 'flex-col' : ''}`}>
+      <a href="#main-content" className="skip-to-content">Skip to content</a>
       <Sidebar
         activePage={activePage}
         setActivePage={setActivePage}
@@ -587,7 +602,8 @@ export default function App() {
         onLogout={() => signOut(auth)}
       />
 
-      <main className={`flex-1 overflow-auto transition-all duration-300 ${isMobile ? 'mobile-main-content' : sidebarOpen ? 'ml-64' : 'ml-[68px]'}`}>
+      <main id="main-content" className={`flex-1 overflow-auto transition-all duration-300 ${isMobile ? 'mobile-main-content' : sidebarOpen ? 'ml-64' : 'ml-[68px]'}`}>
+        <ErrorBoundary>
         <div key={activePage} className="page-enter">
         {/* === ADMIN PAGES === */}
         {isAdmin && activePage === 'dashboard' && (
@@ -929,6 +945,7 @@ export default function App() {
           <AuditLog audits={audits} />
         )}
         </div>
+        </ErrorBoundary>
       </main>
     </div>
     </AuditProvider>

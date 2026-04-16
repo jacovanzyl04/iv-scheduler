@@ -13,6 +13,7 @@ import { Clock, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Chev
 import { useAudit, useAudits } from '../contexts/AuditContext';
 import PageTabs from './PageTabs';
 import AuditLogPanel from './AuditLogPanel';
+import EmptyState from './EmptyState';
 
 function formatDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -665,7 +666,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
       {/* ===== HEADER ===== */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 md:mb-6 section-animate">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text font-display">
             Pay Cycle Hours
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">
@@ -743,7 +744,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>
-                  <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                  <p className="text-4xl font-bold tracking-wide count-animate mt-1 text-d4l-text font-display">
                     {value}
                   </p>
                 </div>
@@ -760,7 +761,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
       {/* ===== PERMANENT STAFF HIGHLIGHT ===== */}
       {tabPermanent.length > 0 && (
         <div className="mb-8 section-animate section-animate-delay-1">
-          <h2 className="text-lg font-semibold text-d4l-text mb-4 flex items-center gap-2 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h2 className="text-lg font-semibold text-d4l-text mb-4 flex items-center gap-2 uppercase tracking-wider font-display">
             <Clock className="w-5 h-5 text-green-400" />
             Permanent Staff — Hours Tracking
           </h2>
@@ -780,7 +781,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
                         <span className="text-[10px] text-d4l-muted">{member.role}</span>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>{info?.totalHours || 0}h</div>
+                        <div className="text-2xl font-bold text-d4l-text font-display">{info?.totalHours || 0}h</div>
                         {target > 0 ? <div className="text-[10px] text-d4l-dim">of {target}h target</div>
                           : <div className="text-[10px] text-amber-400">Target TBD</div>}
                       </div>
@@ -827,7 +828,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
             <>
               <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'rgba(34,197,94,0.04)' }}>
                 <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                <span className="text-xs font-semibold text-green-400 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <span className="text-xs font-semibold text-green-400 uppercase tracking-wider font-display">
                   Permanent Staff
                 </span>
               </div>
@@ -840,7 +841,7 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
             <>
               <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'rgba(138,128,112,0.04)' }}>
                 <div className="w-2 h-2 rounded-full bg-d4l-muted shrink-0" />
-                <span className="text-xs font-semibold text-d4l-text2 uppercase tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                <span className="text-xs font-semibold text-d4l-text2 uppercase tracking-wider font-display">
                   Part-time & Locum Staff
                 </span>
               </div>
@@ -850,8 +851,12 @@ export default function MonthlyHours({ staff, schedules, payCycleExtras = {}, se
 
           {/* Empty state */}
           {tabStaff.length === 0 && (
-            <div className="px-4 py-12 text-center text-d4l-muted text-sm">
-              No staff on this cycle type
+            <div className="p-4">
+              <EmptyState
+                icon={<Users className="w-8 h-8" />}
+                title="No staff on this cycle type"
+                hint="Switch between pay cycle and monthly tabs to see staff"
+              />
             </div>
           )}
         </div>

@@ -104,7 +104,7 @@ export default function MonthlyCalendar({ schedules, staff }) {
       {/* ===== HEADER ===== */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 section-animate">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text font-display">
             Monthly Calendar
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Bird's-eye view of the full month</p>
@@ -116,7 +116,7 @@ export default function MonthlyCalendar({ schedules, staff }) {
           <button onClick={goToThisMonth} className="px-3 py-1.5 text-sm bg-d4l-gold text-black font-semibold rounded-lg hover:bg-d4l-gold-dark btn-glow">
             This Month
           </button>
-          <span className="text-xl lg:text-2xl font-bold text-d4l-text min-w-[160px] lg:min-w-[200px] text-center" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <span className="text-xl lg:text-2xl font-bold text-d4l-text min-w-[160px] lg:min-w-[200px] text-center font-display">
             {MONTH_NAMES[month]} {year}
           </span>
           <button onClick={goToNextMonth} className="p-2 rounded-lg hover:bg-d4l-hover transition-colors text-d4l-muted hover:text-d4l-text">

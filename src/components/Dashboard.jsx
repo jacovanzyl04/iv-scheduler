@@ -104,7 +104,7 @@ export default function Dashboard({
       {/* ===== SECTION 1: TOP BAR ===== */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 md:mb-8 section-animate">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text font-display">
             {greeting}
           </h1>
           <p className="text-d4l-muted text-xs md:text-sm mt-0.5 leading-relaxed">
@@ -150,7 +150,7 @@ export default function Dashboard({
 
       {/* ===== SECTION 2: METRICS STRIP ===== */}
       <div className="stat-animate bg-d4l-surface rounded-xl border border-d4l-border mb-6 md:mb-8 overflow-hidden">
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-d4l-border">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-d4l-border" aria-live="polite">
           {/* Coverage */}
           <div className="p-4 md:px-5 md:py-4">
             <div className="flex items-baseline gap-2 mb-0.5">
@@ -205,8 +205,7 @@ export default function Dashboard({
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-400 pulse-dot" />
-              <h2 className="text-lg font-semibold text-d4l-text uppercase tracking-wider"
-                style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+              <h2 className="text-lg font-semibold text-d4l-text uppercase tracking-wider font-display">
                 Today's Staffing
               </h2>
             </div>
@@ -285,8 +284,7 @@ export default function Dashboard({
 
       {/* ===== SECTION 4: WEEK AT A GLANCE ===== */}
       <div className="mb-8 section-animate section-animate-delay-2">
-        <h2 className="text-lg font-semibold text-d4l-text mb-4 uppercase tracking-wider"
-          style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+        <h2 className="text-lg font-semibold text-d4l-text mb-4 uppercase tracking-wider font-display">
           Week at a Glance
         </h2>
 

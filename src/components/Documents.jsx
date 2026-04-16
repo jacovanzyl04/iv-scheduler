@@ -19,6 +19,7 @@ import {
 } from '../utils/documentFiles';
 import { saveFirebaseChild } from '../utils/storage';
 import { useCan } from '../contexts/PermissionsContext';
+import EmptyState from './EmptyState';
 
 /* =========================================================================
    Main component
@@ -221,7 +222,7 @@ export default function Documents({
       {/* ===== HEADER ===== */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 section-animate">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-3xl lg:text-4xl font-bold tracking-wide text-d4l-text font-display">
             Documents
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">
@@ -399,18 +400,6 @@ function FilterChip({ label, active, onClick }) {
     >
       {label}
     </button>
-  );
-}
-
-function EmptyState({ icon, title, hint }) {
-  return (
-    <div className="bg-d4l-surface border border-d4l-border rounded-xl py-16 px-6 text-center panel-glow">
-      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-d4l-hover/40 text-d4l-muted mb-4">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold text-d4l-text mb-1">{title}</h3>
-      <p className="text-sm text-d4l-muted">{hint}</p>
-    </div>
   );
 }
 

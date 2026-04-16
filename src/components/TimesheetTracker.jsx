@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, FileCheck, Upload, Paperclip, X, Loader2, History } from 'lucide-react';
 import { isScheduleRole } from '../data/initialData';
+import EmptyState from './EmptyState';
 import {
   getPayCycleForDate,
   getPayCycleRange,
@@ -296,7 +297,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       <>
         <div className="px-4 py-2 min-w-[600px] flex items-center gap-2" style={{ background: `${color}08` }}>
           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color, fontFamily: "'Bebas Neue', sans-serif" }}>
+          <span className="text-xs font-semibold uppercase tracking-wider font-display" style={{ color }}>
             {label}
           </span>
         </div>
@@ -311,7 +312,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       {/* ===== HEADER ===== */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6 md:mb-8 section-animate">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-wide text-d4l-text font-display">
             {staffFilter ? 'My Timesheet' : 'Timesheets'}
           </h1>
           <p className="text-d4l-muted text-sm mt-0.5">Track pay cycle timesheet submissions</p>
@@ -362,7 +363,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-d4l-muted font-medium">{label}</p>
-                    <p className={`text-4xl font-bold tracking-wide count-animate mt-1 ${textColor}`} style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+                    <p className={`text-4xl font-bold tracking-wide count-animate mt-1 font-display ${textColor}`}>
                       {value}
                     </p>
                   </div>
@@ -379,11 +380,11 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
 
       {/* ===== STAFF GRID ===== */}
       {totalStaff === 0 ? (
-        <div className="section-animate bg-d4l-surface rounded-xl border border-d4l-border text-center py-16">
-          <FileCheck className="w-12 h-12 mx-auto mb-3 text-d4l-dim" />
-          <p className="text-sm text-d4l-dim">No staff scheduled in this pay cycle.</p>
-          <p className="text-xs text-d4l-dim mt-1">Schedule shifts in the Weekly Schedule to see staff here.</p>
-        </div>
+        <EmptyState
+          icon={<FileCheck className="w-8 h-8" />}
+          title="No staff scheduled in this pay cycle"
+          hint="Schedule shifts in the Weekly Schedule to see staff here"
+        />
       ) : (
         <div className="section-animate section-animate-delay-1 bg-d4l-surface rounded-xl border border-d4l-border overflow-hidden panel-glow">
           <div className="overflow-x-auto">
