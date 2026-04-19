@@ -153,28 +153,32 @@ export default function App() {
     };
   }, []);
 
-  // Track whether updates are from Firebase (to avoid write-back loops)
-  const fromFirebase = useRef(false);
+  // Track which keys are currently being updated from a Firebase snapshot
+  // (per-key, so a snapshot for key A cannot suppress a user's write to key B).
+  // A global boolean was causing user edits to be silently dropped when their
+  // persist effect happened to run during an unrelated subscription's callback.
+  const fromFirebase = useRef(new Set());
+  const isFromFirebase = (key) => fromFirebase.current.has(key);
   const firebaseLoaded = useRef(new Set());
   const canSave = (key) => !isConfigured || firebaseLoaded.current.has(key);
 
   // Persist state changes
-  useEffect(() => { if (canSave(STORAGE_KEYS.STAFF) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.STAFF, staff); }, [staff]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.AVAILABILITY) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.SHIFT_REQUESTS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.TIMESHEETS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.TIMESHEETS, timesheets); }, [timesheets]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.VIAL_STOCK) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.VIAL_STOCK, vialStock); }, [vialStock]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.CONSUMABLES_STOCK) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.CONSUMABLES_STOCK, consumablesStock); }, [consumablesStock]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.BRANCH_TRANSFERS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.BRANCH_TRANSFERS, branchTransfers); }, [branchTransfers]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_EXTRAS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_EXTRAS, payCycleExtras); }, [payCycleExtras]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.PUBLISHED_SCHEDULES) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, publishedSchedules); }, [publishedSchedules]);
-  useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULE_STATUS) && !fromFirebase.current) saveToStorage(STORAGE_KEYS.SCHEDULE_STATUS, scheduleStatus); }, [scheduleStatus]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.STAFF) && !isFromFirebase(STORAGE_KEYS.STAFF)) saveToStorage(STORAGE_KEYS.STAFF, staff); }, [staff]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULES) && !isFromFirebase(STORAGE_KEYS.SCHEDULES)) saveToStorage(STORAGE_KEYS.SCHEDULES, schedules); }, [schedules]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.AVAILABILITY) && !isFromFirebase(STORAGE_KEYS.AVAILABILITY)) saveToStorage(STORAGE_KEYS.AVAILABILITY, availability); }, [availability]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.SHIFT_REQUESTS) && !isFromFirebase(STORAGE_KEYS.SHIFT_REQUESTS)) saveToStorage(STORAGE_KEYS.SHIFT_REQUESTS, shiftRequests); }, [shiftRequests]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.TIMESHEETS) && !isFromFirebase(STORAGE_KEYS.TIMESHEETS)) saveToStorage(STORAGE_KEYS.TIMESHEETS, timesheets); }, [timesheets]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.VIAL_STOCK) && !isFromFirebase(STORAGE_KEYS.VIAL_STOCK)) saveToStorage(STORAGE_KEYS.VIAL_STOCK, vialStock); }, [vialStock]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.CONSUMABLES_STOCK) && !isFromFirebase(STORAGE_KEYS.CONSUMABLES_STOCK)) saveToStorage(STORAGE_KEYS.CONSUMABLES_STOCK, consumablesStock); }, [consumablesStock]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.BRANCH_TRANSFERS) && !isFromFirebase(STORAGE_KEYS.BRANCH_TRANSFERS)) saveToStorage(STORAGE_KEYS.BRANCH_TRANSFERS, branchTransfers); }, [branchTransfers]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_EXTRAS) && !isFromFirebase(STORAGE_KEYS.PAY_CYCLE_EXTRAS)) saveToStorage(STORAGE_KEYS.PAY_CYCLE_EXTRAS, payCycleExtras); }, [payCycleExtras]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.PAY_CYCLE_OVERTIME) && !isFromFirebase(STORAGE_KEYS.PAY_CYCLE_OVERTIME)) saveToStorage(STORAGE_KEYS.PAY_CYCLE_OVERTIME, payCycleOvertime); }, [payCycleOvertime]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.PUBLISHED_SCHEDULES) && !isFromFirebase(STORAGE_KEYS.PUBLISHED_SCHEDULES)) saveToStorage(STORAGE_KEYS.PUBLISHED_SCHEDULES, publishedSchedules); }, [publishedSchedules]);
+  useEffect(() => { if (canSave(STORAGE_KEYS.SCHEDULE_STATUS) && !isFromFirebase(STORAGE_KEYS.SCHEDULE_STATUS)) saveToStorage(STORAGE_KEYS.SCHEDULE_STATUS, scheduleStatus); }, [scheduleStatus]);
   // Documents: always cache locally; echo to Firebase only after initial
   // sync so we don't overwrite remote data with a stale initial state.
   useEffect(() => {
-    if (fromFirebase.current) return;
+    if (isFromFirebase(STORAGE_KEYS.DOCUMENTS)) return;
     saveLocal(STORAGE_KEYS.DOCUMENTS, documents);
     if (canSave(STORAGE_KEYS.DOCUMENTS)) saveFirebase(STORAGE_KEYS.DOCUMENTS, documents);
   }, [documents]);
@@ -184,23 +188,23 @@ export default function App() {
   // object back to Firebase here — a stale snapshot would clobber audits
   // added concurrently by another client. Local caching only.
   useEffect(() => {
-    if (fromFirebase.current) return;
+    if (isFromFirebase(STORAGE_KEYS.DOCUMENT_AUDITS)) return;
     saveLocal(STORAGE_KEYS.DOCUMENT_AUDITS, documentAudits);
   }, [documentAudits]);
   useEffect(() => {
-    if (fromFirebase.current) return;
+    if (isFromFirebase(STORAGE_KEYS.AUDITS)) return;
     saveLocal(STORAGE_KEYS.AUDITS, audits);
   }, [audits]);
   // Todo templates: admin-edited, low frequency — full state replace is fine.
   useEffect(() => {
-    if (fromFirebase.current) return;
+    if (isFromFirebase(STORAGE_KEYS.TODO_TEMPLATES)) return;
     saveLocal(STORAGE_KEYS.TODO_TEMPLATES, todoTemplates);
     if (canSave(STORAGE_KEYS.TODO_TEMPLATES)) saveFirebase(STORAGE_KEYS.TODO_TEMPLATES, todoTemplates);
   }, [todoTemplates]);
   // Completions: written directly via saveFirebaseChild when a staff
   // ticks a box, so here we only mirror to localStorage.
   useEffect(() => {
-    if (fromFirebase.current) return;
+    if (isFromFirebase(STORAGE_KEYS.TODO_COMPLETIONS)) return;
     saveLocal(STORAGE_KEYS.TODO_COMPLETIONS, todoCompletions);
   }, [todoCompletions]);
 
@@ -211,8 +215,16 @@ export default function App() {
     const unsubs = [];
     const markLoaded = (key) => () => { firebaseLoaded.current.add(key); };
 
+    // Wraps a Firebase subscription callback so that the per-key suppression
+    // flag is set synchronously before setState and cleared after React has
+    // flushed the resulting effects. Using a per-key Set (instead of a single
+    // boolean) prevents one key's snapshot from silently swallowing a user
+    // write to a different key that happens in the same tick.
+    const markSuppress = (key) => fromFirebase.current.add(key);
+    const clearSuppress = (key) => { setTimeout(() => fromFirebase.current.delete(key), 0); };
+
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.STAFF, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.STAFF);
       const arr = Array.isArray(data) ? data : [];
       // Merge payCycleType from defaults for staff that have it
       const merged = arr.map(s => {
@@ -223,109 +235,109 @@ export default function App() {
         return s;
       });
       setStaff(merged);
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.STAFF);
     }, markLoaded(STORAGE_KEYS.STAFF)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.SCHEDULES, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.SCHEDULES);
       setSchedules(normalizeSchedules(data));
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.SCHEDULES);
     }, markLoaded(STORAGE_KEYS.SCHEDULES)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.AVAILABILITY, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.AVAILABILITY);
       setAvailability(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.AVAILABILITY);
     }, markLoaded(STORAGE_KEYS.AVAILABILITY)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.SHIFT_REQUESTS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.SHIFT_REQUESTS);
       setShiftRequests(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.SHIFT_REQUESTS);
     }, markLoaded(STORAGE_KEYS.SHIFT_REQUESTS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.TIMESHEETS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.TIMESHEETS);
       setTimesheets(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.TIMESHEETS);
     }, markLoaded(STORAGE_KEYS.TIMESHEETS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.VIAL_STOCK, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.VIAL_STOCK);
       setVialStock(data || { vials: null, stock: {}, history: [] });
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.VIAL_STOCK);
     }, markLoaded(STORAGE_KEYS.VIAL_STOCK)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.CONSUMABLES_STOCK, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.CONSUMABLES_STOCK);
       setConsumablesStock(data || { items: null, stock: {}, history: [] });
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.CONSUMABLES_STOCK);
     }, markLoaded(STORAGE_KEYS.CONSUMABLES_STOCK)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.BRANCH_TRANSFERS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.BRANCH_TRANSFERS);
       setBranchTransfers(data || { history: [] });
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.BRANCH_TRANSFERS);
     }, markLoaded(STORAGE_KEYS.BRANCH_TRANSFERS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.PAY_CYCLE_EXTRAS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.PAY_CYCLE_EXTRAS);
       setPayCycleExtras(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.PAY_CYCLE_EXTRAS);
     }, markLoaded(STORAGE_KEYS.PAY_CYCLE_EXTRAS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.PAY_CYCLE_OVERTIME, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.PAY_CYCLE_OVERTIME);
       setPayCycleOvertime(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.PAY_CYCLE_OVERTIME);
     }, markLoaded(STORAGE_KEYS.PAY_CYCLE_OVERTIME)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.PUBLISHED_SCHEDULES, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.PUBLISHED_SCHEDULES);
       setPublishedSchedules(normalizeSchedules(data));
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.PUBLISHED_SCHEDULES);
     }, markLoaded(STORAGE_KEYS.PUBLISHED_SCHEDULES)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.SCHEDULE_STATUS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.SCHEDULE_STATUS);
       setScheduleStatus(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.SCHEDULE_STATUS);
     }, markLoaded(STORAGE_KEYS.SCHEDULE_STATUS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.DOCUMENTS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.DOCUMENTS);
       setDocuments(data || {});
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.DOCUMENTS);
     }, markLoaded(STORAGE_KEYS.DOCUMENTS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.DOCUMENT_AUDITS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.DOCUMENT_AUDITS);
       // Audits are append-only: merge incoming data into existing state so a
       // partial/late snapshot from Firebase can never wipe entries we already
       // know about locally. Deletions are intentionally not supported.
       setDocumentAudits(prev => ({ ...(prev || {}), ...(data || {}) }));
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.DOCUMENT_AUDITS);
     }, markLoaded(STORAGE_KEYS.DOCUMENT_AUDITS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.AUDITS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.AUDITS);
       // Same merge pattern as documentAudits — append-only log.
       setAudits(prev => ({ ...(prev || {}), ...(data || {}) }));
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.AUDITS);
     }, markLoaded(STORAGE_KEYS.AUDITS)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.TODO_TEMPLATES, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.TODO_TEMPLATES);
       setTodoTemplates(data || null);
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.TODO_TEMPLATES);
     }, markLoaded(STORAGE_KEYS.TODO_TEMPLATES)));
 
     unsubs.push(subscribeToFirebase(STORAGE_KEYS.TODO_COMPLETIONS, (data) => {
-      fromFirebase.current = true;
+      markSuppress(STORAGE_KEYS.TODO_COMPLETIONS);
       // Per-staff per-day per-item map. Merge by top-level date key so we
       // never wipe earlier days when only today's node comes through.
       setTodoCompletions(prev => ({ ...(prev || {}), ...(data || {}) }));
-      setTimeout(() => { fromFirebase.current = false; }, 0);
+      clearSuppress(STORAGE_KEYS.TODO_COMPLETIONS);
     }, markLoaded(STORAGE_KEYS.TODO_COMPLETIONS)));
 
     return () => unsubs.forEach(fn => fn && fn());
