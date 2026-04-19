@@ -64,6 +64,23 @@ export async function deleteTimesheetFile() {
 }
 
 /**
+ * Normalise a timesheet entry's files into an array.
+ * Handles three shapes:
+ *   - Modern: { files: [{ fileUrl, fileName, uploadedAt }, ...] }
+ *   - Legacy single-file: { fileUrl, fileName }
+ *   - None
+ * Never returns undefined.
+ */
+export function getTimesheetFiles(entry) {
+  if (!entry) return [];
+  if (Array.isArray(entry.files) && entry.files.length > 0) return entry.files;
+  if (entry.fileUrl) {
+    return [{ fileUrl: entry.fileUrl, fileName: entry.fileName || 'timesheet', uploadedAt: entry.submittedDate || null }];
+  }
+  return [];
+}
+
+/**
  * Run monthly auto-cleanup of old timesheet references.
  * Strips fileUrl/fileName from database entries for old pay cycles.
  * Cloudinary files remain but URLs become orphaned (no impact, free tier is 25GB).
@@ -84,15 +101,18 @@ export async function runMonthlyCleanup(timesheets, setTimesheets) {
   const cycleToClean = getPrevPayCycle(currentCycle);
 
   try {
-    // Strip fileUrl/fileName from database entries for that cycle
+    // Strip file references (legacy fileUrl/fileName AND the new files array)
+    // from database entries for that cycle. Cloudinary files remain but URLs
+    // become orphaned — no impact, free tier is 25GB.
     if (timesheets[cycleToClean]) {
       setTimesheets(prev => {
         const updated = { ...prev };
         if (updated[cycleToClean]) {
           const updatedCycle = { ...updated[cycleToClean] };
           for (const staffId of Object.keys(updatedCycle)) {
-            if (updatedCycle[staffId].fileUrl) {
-              const { fileUrl, fileName, ...rest } = updatedCycle[staffId];
+            const entry = updatedCycle[staffId];
+            if (entry?.fileUrl || entry?.files) {
+              const { fileUrl, fileName, files, ...rest } = entry;
               updatedCycle[staffId] = rest;
             }
           }

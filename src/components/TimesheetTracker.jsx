@@ -10,7 +10,7 @@ import {
   getPrevPayCycle,
   getNextPayCycle,
 } from '../utils/payCycle';
-import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup } from '../utils/timesheetFiles';
+import { uploadTimesheetFile, deleteTimesheetFile, runMonthlyCleanup, getTimesheetFiles } from '../utils/timesheetFiles';
 import { useAudit, useAudits } from '../contexts/AuditContext';
 import { useCan } from '../contexts/PermissionsContext';
 import PageTabs from './PageTabs';
@@ -67,7 +67,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const totalStaff = filteredEntries.length;
   const submittedCount = filteredEntries.filter(([id]) => cycleTimesheets[id]?.status === 'submitted').length;
   const pendingCount = totalStaff - submittedCount;
-  const filesUploadedCount = filteredEntries.filter(([id]) => cycleTimesheets[id]?.fileUrl).length;
+  const filesUploadedCount = filteredEntries.filter(([id]) => getTimesheetFiles(cycleTimesheets[id]).length > 0).length;
 
   const nurses = filteredEntries.filter(([, info]) => info.role === 'nurse').sort((a, b) => a[1].name.localeCompare(b[1].name));
   const receptionists = filteredEntries.filter(([, info]) => info.role === 'receptionist').sort((a, b) => a[1].name.localeCompare(b[1].name));
@@ -126,19 +126,39 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   };
 
   const handleFileSelected = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     const staffId = uploadTargetStaff.current;
     if (!staffId) return;
     setUploadingStaff(staffId);
     setUploadError(null);
+    const uploaded = [];
     try {
-      const { fileUrl, fileName } = await uploadTimesheetFile(currentCycle, staffId, file);
+      // Upload sequentially so a failure mid-batch doesn't leave us with a
+      // half-applied state update. Each Cloudinary public_id includes a
+      // Date.now() suffix so concurrent uploads wouldn't collide anyway.
+      for (const file of files) {
+        const { fileUrl, fileName } = await uploadTimesheetFile(currentCycle, staffId, file);
+        uploaded.push({ fileUrl, fileName, uploadedAt: new Date().toISOString() });
+      }
       setTimesheets(prev => {
         const updated = { ...prev };
         if (!updated[currentCycle]) updated[currentCycle] = {};
         const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
-        updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...current, fileUrl, fileName, status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] } };
+        // Merge with any existing files (including legacy single-file shape)
+        // and drop the legacy fileUrl/fileName keys going forward.
+        const existing = getTimesheetFiles(current);
+        const { fileUrl: _oldUrl, fileName: _oldName, ...rest } = current;
+        const nextFiles = [...existing, ...uploaded];
+        updated[currentCycle] = {
+          ...updated[currentCycle],
+          [staffId]: {
+            ...rest,
+            files: nextFiles,
+            status: 'submitted',
+            submittedDate: new Date().toISOString().split('T')[0],
+          },
+        };
         return updated;
       });
       const member = staff.find(s => s.id === staffId);
@@ -147,25 +167,52 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         action: 'file_uploaded',
         targetId: staffId,
         targetLabel: member?.name || staffId,
-        details: [`Cycle: ${currentCycle}`, `File: ${fileName}`],
+        details: [
+          `Cycle: ${currentCycle}`,
+          `Files: ${uploaded.map(f => f.fileName).join(', ')}`,
+        ],
       });
     } catch (err) {
       setUploadError({ staffId, message: err.message });
+      // Keep any files that succeeded before the error so the user doesn't
+      // lose work from earlier iterations of the batch.
+      if (uploaded.length) {
+        setTimesheets(prev => {
+          const updated = { ...prev };
+          if (!updated[currentCycle]) updated[currentCycle] = {};
+          const current = updated[currentCycle][staffId] || { status: 'pending', submittedDate: null, notes: '' };
+          const existing = getTimesheetFiles(current);
+          const { fileUrl: _oldUrl, fileName: _oldName, ...rest } = current;
+          updated[currentCycle] = {
+            ...updated[currentCycle],
+            [staffId]: { ...rest, files: [...existing, ...uploaded], status: 'submitted', submittedDate: new Date().toISOString().split('T')[0] },
+          };
+          return updated;
+        });
+      }
     } finally {
       setUploadingStaff(null);
     }
   };
 
-  const handleRemoveFile = async (staffId) => {
+  const handleRemoveFile = async (staffId, fileUrl) => {
     if (!canWrite) return;
     try {
-      const removedFileName = timesheets[currentCycle]?.[staffId]?.fileName;
+      const currentEntry = timesheets[currentCycle]?.[staffId];
+      const existing = getTimesheetFiles(currentEntry);
+      const removed = existing.find(f => f.fileUrl === fileUrl);
       await deleteTimesheetFile(currentCycle, staffId);
       setTimesheets(prev => {
         const updated = { ...prev };
         if (!updated[currentCycle]?.[staffId]) return prev;
-        const { fileUrl, fileName, ...rest } = updated[currentCycle][staffId];
-        updated[currentCycle] = { ...updated[currentCycle], [staffId]: { ...rest, status: 'pending', submittedDate: null } };
+        const entry = updated[currentCycle][staffId];
+        const files = getTimesheetFiles(entry).filter(f => f.fileUrl !== fileUrl);
+        // Drop legacy fileUrl/fileName to migrate this entry to the new shape.
+        const { fileUrl: _oldUrl, fileName: _oldName, ...rest } = entry;
+        const nextEntry = files.length
+          ? { ...rest, files }
+          : { ...rest, files: [], status: 'pending', submittedDate: null };
+        updated[currentCycle] = { ...updated[currentCycle], [staffId]: nextEntry };
         return updated;
       });
       const member = staff.find(s => s.id === staffId);
@@ -174,7 +221,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
         action: 'file_removed',
         targetId: staffId,
         targetLabel: member?.name || staffId,
-        details: [`Cycle: ${currentCycle}`, removedFileName ? `File: ${removedFileName}` : null].filter(Boolean),
+        details: [`Cycle: ${currentCycle}`, removed?.fileName ? `File: ${removed.fileName}` : null].filter(Boolean),
       });
     } catch (err) {
       console.error('Failed to remove file:', err);
@@ -184,41 +231,30 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
   const renderStaffRow = ([staffId, info]) => {
     const ts = cycleTimesheets[staffId] || { status: 'pending', submittedDate: null, notes: '' };
     const isSubmitted = ts.status === 'submitted';
+    const files = getTimesheetFiles(ts);
+    const hasFiles = files.length > 0;
 
     return (
-      <div key={staffId} className="row-animate grid items-center border-b border-d4l-border last:border-b-0 hover:bg-d4l-hover/30 transition-colors px-4 py-3 min-w-[600px]"
+      <div key={staffId} className="row-animate grid items-start border-b border-d4l-border last:border-b-0 hover:bg-d4l-hover/30 transition-colors px-4 py-3 min-w-[600px]"
         style={{ gridTemplateColumns: '1fr 70px 70px 110px 100px 1fr' }}>
-        {/* Name + badges + file */}
+        {/* Name + badges + files */}
         <div>
           <div className="flex items-center gap-2">
-            {ts.fileUrl ? (
-              <a href={ts.fileUrl} target="_blank" rel="noopener noreferrer"
-                className="font-medium text-d4l-gold hover:underline text-sm truncate"
-                title={`Open ${ts.fileName || 'timesheet'}`}>
-                {info.name}
-              </a>
-            ) : (
-              <span className="font-medium text-d4l-text text-sm">{info.name}</span>
-            )}
-            {ts.fileUrl && (
+            <span className="font-medium text-d4l-text text-sm">{info.name}</span>
+            {hasFiles && (
               <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-d4l-gold/10 text-d4l-gold border border-d4l-gold/20 shrink-0">
                 <Paperclip className="w-2.5 h-2.5" />
-                {(ts.fileName || 'file').slice(0, 12)}
+                {files.length} file{files.length === 1 ? '' : 's'}
               </span>
             )}
             {uploadingStaff === staffId ? (
               <Loader2 className="w-3.5 h-3.5 text-d4l-gold-dim animate-spin shrink-0" />
             ) : canWrite ? (
               <button onClick={() => handleUploadClick(staffId)} disabled={!!uploadingStaff}
-                className="p-1 rounded-lg hover:bg-d4l-gold/10 transition-colors shrink-0" title={ts.fileUrl ? 'Replace file' : 'Upload timesheet'}>
+                className="p-1 rounded-lg hover:bg-d4l-gold/10 transition-colors shrink-0" title={hasFiles ? 'Upload another file' : 'Upload timesheet'}>
                 <Upload className={`w-3.5 h-3.5 ${uploadingStaff ? 'text-d4l-hover' : 'text-d4l-dim hover:text-d4l-gold'}`} />
               </button>
             ) : null}
-            {ts.fileUrl && canWrite && (
-              <button onClick={() => handleRemoveFile(staffId)} className="p-1 rounded-lg hover:bg-red-500/10 transition-colors shrink-0" title="Remove file">
-                <X className="w-3.5 h-3.5 text-d4l-dim hover:text-red-400" />
-              </button>
-            )}
           </div>
           <div className="flex gap-1.5 mt-1">
             <span className={`text-[10px] px-1.5 py-0.5 rounded ${info.role === 'nurse' ? 'bg-blue-500/10 text-blue-400' : info.role === 'receptionist' ? 'bg-pink-500/10 text-pink-400' : 'bg-green-500/10 text-green-400'}`}>
@@ -228,6 +264,26 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
               {info.employmentType}
             </span>
           </div>
+          {hasFiles && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {files.map((f, idx) => (
+                <span key={f.fileUrl || idx} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-d4l-bg border border-d4l-border text-d4l-text2 max-w-full">
+                  <Paperclip className="w-2.5 h-2.5 text-d4l-gold shrink-0" />
+                  <a href={f.fileUrl} target="_blank" rel="noopener noreferrer"
+                    className="hover:text-d4l-gold hover:underline truncate max-w-[180px]"
+                    title={f.fileName || 'timesheet'}>
+                    {f.fileName || `File ${idx + 1}`}
+                  </a>
+                  {canWrite && (
+                    <button onClick={() => handleRemoveFile(staffId, f.fileUrl)}
+                      className="p-0.5 rounded hover:bg-red-500/10 shrink-0" title="Remove file">
+                      <X className="w-3 h-3 text-d4l-dim hover:text-red-400" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
           {uploadError?.staffId === staffId && (
             <p className="text-[10px] text-red-400 mt-1">{uploadError.message}</p>
           )}
@@ -409,7 +465,7 @@ export default function TimesheetTracker({ staff, schedules, timesheets, setTime
       </>
       )}
 
-      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={handleFileSelected} className="hidden" />
+      <input ref={fileInputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={handleFileSelected} className="hidden" />
     </div>
   );
 }
