@@ -102,6 +102,10 @@ export default function App() {
   const [todoCompletions, setTodoCompletions] = useState(() =>
     loadFromStorage(STORAGE_KEYS.TODO_COMPLETIONS, {})
   );
+  // payslips[cycleKey][staffId] = { files: [{fileUrl, fileName, uploadedAt}], notes, notifiedAt, notificationMessage, acknowledgedAt }
+  const [payslips, setPayslips] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.PAYSLIPS, {})
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const isMobile = useIsMobile();
 
@@ -207,6 +211,9 @@ export default function App() {
     if (isFromFirebase(STORAGE_KEYS.TODO_COMPLETIONS)) return;
     saveLocal(STORAGE_KEYS.TODO_COMPLETIONS, todoCompletions);
   }, [todoCompletions]);
+  // Payslips: full-state replace is fine — HR edits are low-frequency and
+  // the acknowledgedAt write goes through the dedicated sub-path writer.
+  useEffect(() => { if (canSave(STORAGE_KEYS.PAYSLIPS) && !isFromFirebase(STORAGE_KEYS.PAYSLIPS)) saveToStorage(STORAGE_KEYS.PAYSLIPS, payslips); }, [payslips]);
 
   // Subscribe to real-time Firebase updates
   useEffect(() => {
@@ -339,6 +346,12 @@ export default function App() {
       setTodoCompletions(prev => ({ ...(prev || {}), ...(data || {}) }));
       clearSuppress(STORAGE_KEYS.TODO_COMPLETIONS);
     }, markLoaded(STORAGE_KEYS.TODO_COMPLETIONS)));
+
+    unsubs.push(subscribeToFirebase(STORAGE_KEYS.PAYSLIPS, (data) => {
+      markSuppress(STORAGE_KEYS.PAYSLIPS);
+      setPayslips(data || {});
+      clearSuppress(STORAGE_KEYS.PAYSLIPS);
+    }, markLoaded(STORAGE_KEYS.PAYSLIPS)));
 
     return () => unsubs.forEach(fn => fn && fn());
   }, []);
@@ -502,6 +515,24 @@ export default function App() {
       try { localStorage.setItem(STORAGE_KEYS.BRANCH_TRANSFERS, JSON.stringify(next)); } catch {}
       return next;
     });
+  }, []);
+
+  // Staff-side acknowledgement of a payslip notification. Writes a single
+  // leaf (`payslips/{cycle}/{staffId}/acknowledgedAt`) so a staff user only
+  // needs permission on their own record — they never touch siblings.
+  const acknowledgePayslip = useCallback((cycleKey, staffId) => {
+    const ts = new Date().toISOString();
+    setPayslips(prev => {
+      const next = { ...(prev || {}) };
+      const cycle = { ...(next[cycleKey] || {}) };
+      const entry = { ...(cycle[staffId] || {}), acknowledgedAt: ts };
+      cycle[staffId] = entry;
+      next[cycleKey] = cycle;
+      return next;
+    });
+    if (isConfigured && db) {
+      set(ref(db, `payslips/${cycleKey}/${staffId}/acknowledgedAt`), ts).catch(console.error);
+    }
   }, []);
 
   // Resolve staff name for current user
@@ -698,6 +729,10 @@ export default function App() {
             schedules={schedules}
             timesheets={timesheets}
             setTimesheets={setTimesheets}
+            payslips={payslips}
+            setPayslips={setPayslips}
+            currentUser={currentUser}
+            staffName={currentStaffName}
           />
         )}
 
@@ -799,6 +834,10 @@ export default function App() {
             schedules={schedules}
             timesheets={timesheets}
             setTimesheets={setTimesheets}
+            payslips={payslips}
+            setPayslips={setPayslips}
+            currentUser={currentUser}
+            staffName={currentStaffName}
           />
         )}
 
@@ -863,6 +902,8 @@ export default function App() {
             todoCompletions={todoCompletions}
             toggleTodoCompletion={toggleTodoCompletion}
             userRole={userRole}
+            payslips={payslips}
+            acknowledgePayslip={acknowledgePayslip}
           />
         )}
 

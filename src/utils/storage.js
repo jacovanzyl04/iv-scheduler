@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   AUDITS: 'iv-scheduler-audits',
   TODO_TEMPLATES: 'iv-scheduler-todo-templates',
   TODO_COMPLETIONS: 'iv-scheduler-todo-completions',
+  PAYSLIPS: 'iv-scheduler-payslips',
 };
 
 // Firebase path mapping
@@ -43,6 +44,7 @@ const FIREBASE_PATHS = {
   [STORAGE_KEYS.AUDITS]: 'audits',
   [STORAGE_KEYS.TODO_TEMPLATES]: 'todoTemplates',
   [STORAGE_KEYS.TODO_COMPLETIONS]: 'todoCompletions',
+  [STORAGE_KEYS.PAYSLIPS]: 'payslips',
 };
 
 export function loadFromStorage(key, defaultValue) {

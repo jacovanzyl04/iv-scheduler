@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { BRANCHES, DAYS_OF_WEEK, getShiftHours } from '../data/initialData';
 import { getPayCycleForDate, getPayCycleRange, getWeekKeysForPayCycle } from '../utils/payCycle';
 import { hoursBetween } from '../utils/scheduler';
-import { ChevronLeft, ChevronRight, CalendarDays, Clock, ClipboardList, FileCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays, Clock, ClipboardList, FileCheck, Wallet, ExternalLink, X } from 'lucide-react';
 import { useIsMobile } from './Sidebar';
 import TodoListWidget from './TodoListWidget';
 
@@ -27,9 +27,28 @@ export default function StaffDashboard({
   scheduleStatus,
   // Todo widget
   todoTemplates, todoCompletions, toggleTodoCompletion, userRole,
+  // Payslip notifications
+  payslips, acknowledgePayslip,
 }) {
   const member = staff.find(s => s.id === staffId);
   const currentSchedule = schedules[weekKey] || {};
+
+  // Any payslips notified-but-not-yet-acknowledged for this staff member?
+  // Sort by notifiedAt desc — newest banner first.
+  const pendingPayslips = useMemo(() => {
+    if (!payslips || !staffId) return [];
+    const out = [];
+    for (const [cycleKey, cycleData] of Object.entries(payslips)) {
+      const entry = cycleData?.[staffId];
+      if (!entry) continue;
+      if (!entry.notifiedAt) continue;
+      if (entry.acknowledgedAt && entry.acknowledgedAt >= entry.notifiedAt) continue;
+      if (!Array.isArray(entry.files) || entry.files.length === 0) continue;
+      out.push({ cycleKey, entry });
+    }
+    out.sort((a, b) => (b.entry.notifiedAt || '').localeCompare(a.entry.notifiedAt || ''));
+    return out;
+  }, [payslips, staffId]);
 
   // Extract this staff member's assignments for the week
   const mySchedule = useMemo(() => {
@@ -147,6 +166,72 @@ export default function StaffDashboard({
         </h1>
         <p className="text-d4l-muted text-sm">Your schedule and hours overview</p>
       </div>
+
+      {/* Payslip notifications — asymmetric banner with gold accent rail.
+          Shown only when HR has notified the user and they haven't yet
+          opened/dismissed the payslip. Multiple cycles stack vertically. */}
+      {pendingPayslips.length > 0 && (
+        <div className="space-y-3 mb-6">
+          {pendingPayslips.map(({ cycleKey, entry }) => {
+            const { label } = getPayCycleRange(cycleKey);
+            const primaryFile = entry.files[0];
+            const openPayslip = () => {
+              if (primaryFile?.fileUrl) window.open(primaryFile.fileUrl, '_blank', 'noopener,noreferrer');
+              if (acknowledgePayslip) acknowledgePayslip(cycleKey, staffId);
+            };
+            const dismiss = () => {
+              if (acknowledgePayslip) acknowledgePayslip(cycleKey, staffId);
+            };
+            return (
+              <div
+                key={cycleKey}
+                className="section-animate relative bg-d4l-surface border border-d4l-border rounded-xl overflow-hidden panel-glow"
+              >
+                {/* Gold accent rail — functional hierarchy, not neon. */}
+                <div className="absolute inset-y-0 left-0 w-1 bg-d4l-gold" aria-hidden />
+                <div className="pl-5 pr-3 py-4 md:pl-6 md:pr-5 md:py-5 flex flex-col md:flex-row md:items-center gap-3 md:gap-5">
+                  <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0">
+                    <div className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl bg-d4l-gold/12 border border-d4l-gold/25 flex items-center justify-center">
+                      <Wallet className="w-5 h-5 text-d4l-gold" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] uppercase tracking-widest text-d4l-gold font-semibold">New payslip</span>
+                        <span className="w-1 h-1 rounded-full bg-d4l-gold pulse-dot" aria-hidden />
+                        <span className="text-[11px] text-d4l-dim">{new Date(entry.notifiedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}</span>
+                      </div>
+                      <p className="text-sm md:text-base font-semibold text-d4l-text mt-1 leading-snug">
+                        Your payslip for <span className="text-d4l-gold">{label}</span> is available
+                      </p>
+                      {entry.notes && (
+                        <p className="text-xs md:text-[13px] text-d4l-muted mt-1.5 leading-relaxed max-w-[60ch]">
+                          {entry.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 md:gap-2.5 md:shrink-0">
+                    <button
+                      onClick={openPayslip}
+                      className="flex items-center gap-2 px-3.5 md:px-4 py-2 bg-d4l-gold text-black font-semibold text-sm rounded-lg hover:bg-d4l-gold-dark btn-glow transition-colors active:scale-[0.97]"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      View payslip
+                    </button>
+                    <button
+                      onClick={dismiss}
+                      title="Dismiss"
+                      className="p-2 rounded-lg text-d4l-dim hover:text-d4l-text2 hover:bg-d4l-hover transition-colors active:scale-[0.94]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Daily tasks */}
       <div className="mb-6">
